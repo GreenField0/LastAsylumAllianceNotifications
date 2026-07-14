@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
     # Allows manual triggering for testing purposes
 
+permissions:
+  contents: write
+
 jobs:
   send-briefing:
     runs-on: ubuntu-latest
@@ -21,3 +24,17 @@ jobs:
           DISCORD_WEBHOOK_URL_DAILY: ${{ secrets.DISCORD_WEBHOOK_URL_DAILY }}
         run: |
           ./Send-DailyBriefing.ps1
+
+      - name: Persist Last Message ID
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .last-message-id.txt
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore: update last Discord message ID [skip ci]"
+            git push
+          } else {
+            Write-Output "No changes to commit."
+          }

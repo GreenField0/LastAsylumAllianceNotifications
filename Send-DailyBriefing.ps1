@@ -13,6 +13,11 @@
 .PARAMETER SchedulePath
     The path to the JSON file containing the daily schedules. Defaults to '.\schedule.json'.
 
+.PARAMETER MessageIdStorePath
+    The path to a small file used to remember the ID of the last message sent via the
+    webhook, so it can be deleted before the new one is posted. Defaults to
+    '.\.last-message-id.txt'.
+
 .INPUTS
     None.
 
@@ -25,7 +30,8 @@
 [CmdletBinding()]
 param (
     [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
-    [string]$SchedulePath = ".\schedule.json"
+    [string]$SchedulePath = ".\schedule.json",
+    [string]$MessageIdStorePath = ".\.last-message-id.txt"
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -70,13 +76,34 @@ $Payload = [ordered]@{
     )
 }
 
-# 5. Execute HTTP POST Request to Discord
+# 5. Delete the previous day's message (if any) so only the current one remains
+if (Test-Path $MessageIdStorePath) {
+    $PreviousMessageId = (Get-Content -Raw -Path $MessageIdStorePath).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($PreviousMessageId)) {
+        try {
+            Invoke-RestMethod -Uri "$WebhookUrl/messages/$PreviousMessageId" -Method Delete
+            Write-Output "Deleted previous message ($PreviousMessageId)."
+        }
+        catch {
+            # Message may already have been deleted manually, or the ID/token is stale - not fatal.
+            Write-Warning "Could not delete previous message ($PreviousMessageId): $_"
+        }
+    }
+}
+
+# 6. Execute HTTP POST Request to Discord
 # Depth 4 is required to correctly serialize the nested embed array/hashtable
+# '?wait=true' makes Discord return the created message (incl. its ID) instead of an empty response
 $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
 try {
-    $Response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
+    $Response = Invoke-RestMethod -Uri "$WebhookUrl?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
     Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
+
+    # 7. Remember the new message ID for the next run
+    if ($Response.id) {
+        Set-Content -Path $MessageIdStorePath -Value $Response.id -NoNewline
+    }
 }
 catch {
     Write-Error "Failed to send webhook. Exception: $_"
