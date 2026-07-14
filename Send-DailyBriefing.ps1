@@ -1,17 +1,23 @@
 <#
 .SYNOPSIS
-    Sends the daily Alliance Duel and Survival schedule to a Discord channel.
+    Sends or updates the daily Alliance Duel and Survival schedule in a Discord channel.
 
 .DESCRIPTION
     This script retrieves the current day of the week, loads the corresponding formatted
-    markdown structure and image from an external schedule.json file, constructs the 
-    payload, and dispatches it to Discord via Webhook.
+    markdown structure and image from an external schedule.json file. It then reads a 
+    locally stored Discord Message ID. If the ID exists, it attempts to update the 
+    existing message using a PATCH request. If the ID is missing or the message was 
+    deleted, it executes a POST request to create a new message and saves the resulting 
+    Message ID to a local text file for future updates.
 
 .PARAMETER WebhookUrl
     The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL_DAILY.
 
 .PARAMETER SchedulePath
     The path to the JSON file containing the daily schedules. Defaults to '.\schedule.json'.
+
+.PARAMETER IdFilePath
+    The path to the text file storing the current Discord message ID. Defaults to '.\last_id.txt'.
 
 .INPUTS
     None.
@@ -25,7 +31,8 @@
 [CmdletBinding()]
 param (
     [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
-    [string]$SchedulePath = ".\schedule.json"
+    [string]$SchedulePath = ".\schedule.json",
+    [string]$IdFilePath = ".\last_id.txt"
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -70,15 +77,42 @@ $Payload = [ordered]@{
     )
 }
 
-# 5. Execute HTTP POST Request to Discord
-# Depth 4 is required to correctly serialize the nested embed array/hashtable
 $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
-try {
-    $Response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
-    Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
+# 5. Read existing Message ID
+$MessageId = $null
+if (Test-Path $IdFilePath) {
+    $MessageId = (Get-Content -Path $IdFilePath -Raw).Trim()
 }
-catch {
-    Write-Error "Failed to send webhook. Exception: $_"
-    exit 1
+
+$UpdateSuccess = $false
+
+# 6. Attempt PATCH if an ID exists
+if (-not [string]::IsNullOrWhiteSpace($MessageId)) {
+    try {
+        $PatchUrl = "$WebhookUrl/messages/$MessageId"
+        Invoke-RestMethod -Uri $PatchUrl -Method Patch -Body $JsonPayload -ContentType 'application/json' | Out-Null
+        Write-Output "Successfully updated existing message with ID: $MessageId"
+        $UpdateSuccess = $true
+    }
+    catch {
+        Write-Warning "Failed to PATCH message. The message might have been deleted. Falling back to POST. Exception: $_"
+    }
+}
+
+# 7. Execute POST if PATCH was not possible or no ID existed
+if (-not $UpdateSuccess) {
+    try {
+        # Using ?wait=true is mandatory to receive the message object in the response
+        $PostUrl = "$WebhookUrl?wait=true"
+        $Response = Invoke-RestMethod -Uri $PostUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
+        
+        $NewMessageId = $Response.id
+        Set-Content -Path $IdFilePath -Value $NewMessageId
+        Write-Output "Successfully created new message. Saved new ID: $NewMessageId"
+    }
+    catch {
+        Write-Error "Failed to send webhook. Exception: $_"
+        exit 1
+    }
 }
