@@ -1,0 +1,23 @@
+name: Daily Alliance Briefing
+
+on:
+  schedule:
+    # Runs at 02:00 UTC every day (04:00 CEST)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allows manual triggering for testing purposes
+
+jobs:
+  send-briefing:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Execute PowerShell Script
+        shell: pwsh
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          ./Send-DailyBriefing.ps1
