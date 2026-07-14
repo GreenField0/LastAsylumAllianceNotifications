@@ -18,6 +18,6 @@ jobs:
       - name: Execute PowerShell Script
         shell: pwsh
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL_DAILY: ${{ secrets.DISCORD_WEBHOOK_URL_DAILY }}
         run: |
           ./Send-DailyBriefing.ps1
