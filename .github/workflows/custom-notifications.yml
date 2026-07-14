@@ -1,0 +1,25 @@
+name: Custom Notifications
+
+on:
+  schedule:
+    # Polls every 5 minutes for due custom notifications (Google Sheet)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Allows manual triggering for testing purposes
+
+jobs:
+  send-custom-notifications:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Execute PowerShell Script
+        shell: pwsh
+        env:
+          DISCORD_WEBHOOK_URL_CUSTOM: ${{ secrets.DISCORD_WEBHOOK_URL_CUSTOM }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          ./Send-CustomNotifications.ps1
