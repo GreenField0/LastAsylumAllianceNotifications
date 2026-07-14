@@ -8,7 +8,7 @@
     payload, and dispatches it to Discord via Webhook.
 
 .PARAMETER WebhookUrl
-    The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL.
+    The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL_DAILY.
 
 .PARAMETER SchedulePath
     The path to the JSON file containing the daily schedules. Defaults to '.\schedule.json'.
@@ -24,12 +24,12 @@
 #>
 [CmdletBinding()]
 param (
-    [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL,
+    [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
     [string]$SchedulePath = ".\schedule.json"
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
-    Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL environment variable."
+    Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
     exit 1
 }
 
