@@ -1,23 +1,17 @@
 <#
 .SYNOPSIS
-    Sends or updates the daily Alliance Duel and Survival schedule in a Discord channel.
+    Sends the daily Alliance Duel and Survival schedule to a Discord channel.
 
 .DESCRIPTION
     This script retrieves the current day of the week, loads the corresponding formatted
-    markdown structure and image from an external schedule.json file. It then reads a 
-    locally stored Discord Message ID. If the ID exists, it attempts to update the 
-    existing message using a PATCH request. If the ID is missing or the message was 
-    deleted, it executes a POST request to create a new message and saves the resulting 
-    Message ID to a local text file for future updates.
+    markdown structure and image from an external schedule.json file, constructs the 
+    payload, and dispatches it to Discord via Webhook.
 
 .PARAMETER WebhookUrl
     The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL_DAILY.
 
 .PARAMETER SchedulePath
     The path to the JSON file containing the daily schedules. Defaults to '.\schedule.json'.
-
-.PARAMETER IdFilePath
-    The path to the text file storing the current Discord message ID. Defaults to '.\last_id.txt'.
 
 .INPUTS
     None.
@@ -31,20 +25,12 @@
 [CmdletBinding()]
 param (
     [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
-    [string]$SchedulePath = ".\schedule.json",
-    [string]$IdFilePath = ".\last_id.txt"
+    [string]$SchedulePath = ".\schedule.json"
 )
-
-# 1. Sanitize and repair the Webhook URL
-$WebhookUrl = "$WebhookUrl".Trim().Replace('"', '').Replace("'", "")
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
     Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
     exit 1
-}
-
-if (-not $WebhookUrl.StartsWith("http", [System.StringComparison]::OrdinalIgnoreCase)) {
-    $WebhookUrl = "https://" + $WebhookUrl
 }
 
 if (-not (Test-Path $SchedulePath)) {
@@ -52,10 +38,10 @@ if (-not (Test-Path $SchedulePath)) {
     exit 1
 }
 
-# 2. Determine current day of the week
+# 1. Determine current day of the week
 $CurrentDay = (Get-Date).DayOfWeek.ToString()
 
-# 3. Load and parse the schedule data from JSON
+# 2. Load and parse the schedule data from JSON
 try {
     $ScheduleData = Get-Content -Raw -Path $SchedulePath | ConvertFrom-Json
 }
@@ -64,7 +50,7 @@ catch {
     exit 1
 }
 
-# 4. Extract the specific data for today
+# 3. Extract the specific data for today
 $TodayData = $ScheduleData.$CurrentDay
 
 if ($null -eq $TodayData) {
@@ -72,7 +58,7 @@ if ($null -eq $TodayData) {
     exit 1
 }
 
-# 5. Construct JSON Payload with Embed Structure for Image
+# 4. Construct JSON Payload with Embed Structure for Image
 $Payload = [ordered]@{
     content = $TodayData.content
     embeds  = @(
@@ -84,42 +70,15 @@ $Payload = [ordered]@{
     )
 }
 
+# 5. Execute HTTP POST Request to Discord
+# Depth 4 is required to correctly serialize the nested embed array/hashtable
 $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
-# 6. Read existing Message ID
-$MessageId = $null
-if (Test-Path $IdFilePath) {
-    $MessageId = (Get-Content -Path $IdFilePath -Raw).Trim()
+try {
+    $Response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
+    Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
 }
-
-$UpdateSuccess = $false
-
-# 7. Attempt PATCH if an ID exists
-if (-not [string]::IsNullOrWhiteSpace($MessageId)) {
-    try {
-        $PatchUrl = "$WebhookUrl/messages/$MessageId"
-        Invoke-RestMethod -Uri $PatchUrl -Method Patch -Body $JsonPayload -ContentType 'application/json' | Out-Null
-        Write-Output "Successfully updated existing message with ID: $MessageId"
-        $UpdateSuccess = $true
-    }
-    catch {
-        Write-Warning "Failed to PATCH message. The message might have been deleted. Falling back to POST. Exception: $_"
-    }
-}
-
-# 8. Execute POST if PATCH was not possible or no ID existed
-if (-not $UpdateSuccess) {
-    try {
-        # Using wait=true is mandatory to receive the message object in the response
-        $PostUrl = if ($WebhookUrl -match '\?') { "$WebhookUrl&wait=true" } else { "$WebhookUrl?wait=true" }
-        $Response = Invoke-RestMethod -Uri $PostUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
-        
-        $NewMessageId = $Response.id
-        Set-Content -Path $IdFilePath -Value $NewMessageId
-        Write-Output "Successfully created new message. Saved new ID: $NewMessageId"
-    }
-    catch {
-        Write-Error "Failed to send webhook. Exception: $_"
-        exit 1
-    }
+catch {
+    Write-Error "Failed to send webhook. Exception: $_"
+    exit 1
 }
