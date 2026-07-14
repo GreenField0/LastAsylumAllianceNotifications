@@ -35,6 +35,9 @@ param (
     [string]$IdFilePath = ".\last_id.txt"
 )
 
+# Bereinigt die URL zwingend von Leerzeichen und Zeilenumbrüchen
+$WebhookUrl = "$WebhookUrl".Trim()
+
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
     Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
     exit 1
