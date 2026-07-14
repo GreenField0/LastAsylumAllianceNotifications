@@ -35,7 +35,7 @@ param (
     [string]$IdFilePath = ".\last_id.txt"
 )
 
-# Bereinigt die URL zwingend von Leerzeichen und Zeilenumbrüchen
+# Bereinigt die URL zwingend von unsichtbaren Leerzeichen und Zeilenumbrüchen
 $WebhookUrl = "$WebhookUrl".Trim()
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
