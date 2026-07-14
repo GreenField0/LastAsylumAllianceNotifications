@@ -12,6 +12,8 @@ Fragen (Titel exakt so, damit das Skript sie findet):
 | Frage | Typ | Optionen / Hinweis |
 |---|---|---|
 | Nachricht | Absatz (Text) | Pflichtfeld |
+| Titel (optional) | Kurzantwort (Text) | wird als Embed-Titel angezeigt |
+| Bild-URL (optional) | Kurzantwort (Text) | Link zu einem Bild (z.B. Imgur, Discord-CDN), wird als Embed-Bild angezeigt |
 | Zeit-Option | Multiple Choice | `Sofort`, `In X Minuten`, `An einem Datum`, `Wiederkehrend` |
 | Minuten | Kurzantwort (Zahl) | nur für "In X Minuten" |
 | Datum | Datum | nur für "An einem Datum" |
