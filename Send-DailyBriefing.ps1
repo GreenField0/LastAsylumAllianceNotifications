@@ -35,12 +35,16 @@ param (
     [string]$IdFilePath = ".\last_id.txt"
 )
 
-# Bereinigt die URL zwingend von unsichtbaren Leerzeichen und Zeilenumbrüchen
-$WebhookUrl = "$WebhookUrl".Trim()
+# 1. Sanitize and repair the Webhook URL
+$WebhookUrl = "$WebhookUrl".Trim().Replace('"', '').Replace("'", "")
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
     Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
     exit 1
+}
+
+if (-not $WebhookUrl.StartsWith("http", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $WebhookUrl = "https://" + $WebhookUrl
 }
 
 if (-not (Test-Path $SchedulePath)) {
@@ -48,10 +52,10 @@ if (-not (Test-Path $SchedulePath)) {
     exit 1
 }
 
-# 1. Determine current day of the week
+# 2. Determine current day of the week
 $CurrentDay = (Get-Date).DayOfWeek.ToString()
 
-# 2. Load and parse the schedule data from JSON
+# 3. Load and parse the schedule data from JSON
 try {
     $ScheduleData = Get-Content -Raw -Path $SchedulePath | ConvertFrom-Json
 }
@@ -60,7 +64,7 @@ catch {
     exit 1
 }
 
-# 3. Extract the specific data for today
+# 4. Extract the specific data for today
 $TodayData = $ScheduleData.$CurrentDay
 
 if ($null -eq $TodayData) {
@@ -68,7 +72,7 @@ if ($null -eq $TodayData) {
     exit 1
 }
 
-# 4. Construct JSON Payload with Embed Structure for Image
+# 5. Construct JSON Payload with Embed Structure for Image
 $Payload = [ordered]@{
     content = $TodayData.content
     embeds  = @(
@@ -82,7 +86,7 @@ $Payload = [ordered]@{
 
 $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
-# 5. Read existing Message ID
+# 6. Read existing Message ID
 $MessageId = $null
 if (Test-Path $IdFilePath) {
     $MessageId = (Get-Content -Path $IdFilePath -Raw).Trim()
@@ -90,7 +94,7 @@ if (Test-Path $IdFilePath) {
 
 $UpdateSuccess = $false
 
-# 6. Attempt PATCH if an ID exists
+# 7. Attempt PATCH if an ID exists
 if (-not [string]::IsNullOrWhiteSpace($MessageId)) {
     try {
         $PatchUrl = "$WebhookUrl/messages/$MessageId"
@@ -103,11 +107,11 @@ if (-not [string]::IsNullOrWhiteSpace($MessageId)) {
     }
 }
 
-# 7. Execute POST if PATCH was not possible or no ID existed
+# 8. Execute POST if PATCH was not possible or no ID existed
 if (-not $UpdateSuccess) {
     try {
-        # Using ?wait=true is mandatory to receive the message object in the response
-        $PostUrl = "$WebhookUrl?wait=true"
+        # Using wait=true is mandatory to receive the message object in the response
+        $PostUrl = if ($WebhookUrl -match '\?') { "$WebhookUrl&wait=true" } else { "$WebhookUrl?wait=true" }
         $Response = Invoke-RestMethod -Uri $PostUrl -Method Post -Body $JsonPayload -ContentType 'application/json'
         
         $NewMessageId = $Response.id
