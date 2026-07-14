@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "last-asylum-benachrichtigung",
+  "private_key_id": "e48eeaee43d72fec5aee7afbcfecbd94aaa70b7e",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDp0Hjq6XEZGjLq\nBN0h3bJHJAVHOMTIUBRKimvC+6UvkAjhe2xDC0AqgSh9ehHY0LSqdgL4mo9/1RSj\nrwHnIS800BbqnhNh3Hp1CrMMDO0+2bbOIetQFcf2O2jpqFRoqqQUNxREdOrYy5/O\nQTDh0Dze/Bn/cO3vexX7CP2uoNwP1NNFd3lFqVWTLzilP2skE5tj3Er9nYs8afVD\nqCu6itO2OusFgtYuiPs1BuoxtKd7oIxAwhgH+4KOzxyqyZC+pUeCaQ73O8yg1P5m\nIzpcqMey/iwVd9StwI0pT8ExoJmlRVFczOMVKAxvb/URl+uygBLqVcRjSmwpm0tf\nuT5fjUxFAgMBAAECggEAEmQHlsac0ud4zhJq3aaP8WuND2XmMzFP9JsAUI+1laZO\nednY5p8ZwXNznrGoJLXUeBHx4uGusX8uRpUAi9BUOQ24YmTjoQ9pVw/BNzdEaUH7\npdQM1mRC3FnI7elZFlB8Y8Cp/fEfpcTCbEPmweQ8ssyr3ifg9zS8bQiZ149R2obG\n8ubRNWR7OfDuh6a7eUTng/6izURpTN8ZGMrbGlqDAXp25I41lySaobzSZfAtIU6f\nDDidnfQEfOSst/1w6BgyAVBE1Qd5Emdfm6sJ59I2KX8qEF5M8EuSfDK6MkfwZXGZ\nwaEVHeHV42xQ6GGRxn+k9TXPcmB1y0zYa85AedJ3UwKBgQD2uc9yuECvh3EGQixF\nRqVbjM/pZEpE3I4dieKHLVvRfsClhbAyRfjfGOlBftthp24li3RrATflqk/T0w/R\nxMfFPfk3xU/TBtTHtweDtbM9+qxqRynk823+nHYs0YyhadS2n+EaKJaVpfJ4NJlp\nSsFKAqJ3Y8lJrPumEDMga/JEFwKBgQDymmrpLvEluQf2jF02d/Xe687RjwjekQmf\n3Hi/BPArEHYSuiEdoR9hMp13S/YuVuuB5/Nfky1Wk07f/U24Lcguq0HJzfYq0qbH\noRAp01wKm5LYM64K0FKAZC7BYIbJuJ0IqXYjvcfUorod9zeHwdHdkD+lfJdmUhTB\nLh4V742AAwKBgQDIim1AzNzfD5LhyGWdhXege0r/ZKItaKwm/E1hHJA2LvW9VHXL\n1y4bgG8P6mG89U9FOx3MX/gkOBOclECWe4D5JI9uMnXYjAPltTJpbwYbCaac1+0I\niIjOXDR953GMPa5FJpzcG0OSrYjxBafwem+zjYKq0jPpK65740z7PGJ1zwKBgQDi\nYr6JQsi9DuEjbPA+t8q0bw/b9cGtD2MPzkjO1+jWBtJnv1DPuV7y8KyIelYMAAhc\nfPpaoZiZRXVBB7rSt8Yp5p3Jl2yzoUcI2n+eyCEHtQ1euzsZ1DRooxQOV+jvrFq9\njoUz7RDgl8ld1Sf4gyE3xDfgUVdmoAnGCycACT7dyQKBgQCqG76+we0qttapR3O3\nmaFFSWAzTfdRof6OkLdK+ZGDaBztJheXf0I62Rhf809gvqeJpATGJ4RZ65jsUCJc\nNINtnBznGIl/Br0i2JNsVhVr6WvqQK5sGFeyOIAkmSyzTtgm7jF2AO2WDcDqQXqk\nl/jpICYLDYIS6eyUa6KsPAIl3g==\n-----END PRIVATE KEY-----\n",
+  "client_email": "serviceaccount@last-asylum-benachrichtigung.iam.gserviceaccount.com",
+  "client_id": "105914164927079582992",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/serviceaccount%40last-asylum-benachrichtigung.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
