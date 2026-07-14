@@ -81,7 +81,7 @@ if (Test-Path $MessageIdStorePath) {
     $PreviousMessageId = (Get-Content -Raw -Path $MessageIdStorePath).Trim()
     if (-not [string]::IsNullOrWhiteSpace($PreviousMessageId)) {
         try {
-            Invoke-RestMethod -Uri "$WebhookUrl/messages/$PreviousMessageId" -Method Delete
+            Invoke-RestMethod -Uri "${WebhookUrl}/messages/$PreviousMessageId" -Method Delete
             Write-Output "Deleted previous message ($PreviousMessageId)."
         }
         catch {
@@ -97,7 +97,7 @@ if (Test-Path $MessageIdStorePath) {
 $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
 try {
-    $Response = Invoke-RestMethod -Uri "$WebhookUrl?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
+    $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
     Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
 
     # 7. Remember the new message ID for the next run
