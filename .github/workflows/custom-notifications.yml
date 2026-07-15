@@ -21,5 +21,7 @@ jobs:
           DISCORD_WEBHOOK_URL_CUSTOM: ${{ secrets.DISCORD_WEBHOOK_URL_CUSTOM }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          DISCORD_ROLE_ID_GILDENLEITUNG: ${{ secrets.DISCORD_ROLE_ID_GILDENLEITUNG }}
+          DISCORD_ROLE_ID_USER: ${{ secrets.DISCORD_ROLE_ID_USER }}
         run: |
           ./Send-CustomNotifications.ps1
