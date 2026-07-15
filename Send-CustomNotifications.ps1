@@ -23,6 +23,7 @@
       Nachricht
       Titel (optional)           (used as Discord embed title)
       Bild-URL (optional)        (used as Discord embed image)
+      Wen benachrichtigen? (optional)  (Kästchen - Everyone | Gildenleitung | User)
       Zeit-Option                (Sofort | In X Minuten | An einem Datum | Wiederkehrend)
       Minuten
       Datum
@@ -49,6 +50,14 @@
 .PARAMETER TimeZoneId
     IANA time zone used to interpret all dates/times in the sheet. Defaults to 'Europe/Berlin'.
 
+.PARAMETER RoleIdGildenleitung
+    Discord role ID to ping when "Gildenleitung" is selected. Defaults to the
+    environment variable DISCORD_ROLE_ID_GILDENLEITUNG.
+
+.PARAMETER RoleIdUser
+    Discord role ID to ping when "User" is selected. Defaults to the environment
+    variable DISCORD_ROLE_ID_USER.
+
 .INPUTS
     None.
 
@@ -64,7 +73,9 @@ param (
     [string]$SpreadsheetId = $env:GOOGLE_SHEET_ID,
     [string]$ServiceAccountKeyJson = $env:GOOGLE_SERVICE_ACCOUNT_KEY,
     [string]$SheetName = 'Formularantworten 1',
-    [string]$TimeZoneId = 'Europe/Berlin'
+    [string]$TimeZoneId = 'Europe/Berlin',
+    [string]$RoleIdGildenleitung = $env:DISCORD_ROLE_ID_GILDENLEITUNG,
+    [string]$RoleIdUser = $env:DISCORD_ROLE_ID_USER
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -183,18 +194,32 @@ function ConvertTo-TimeSpanValue {
 }
 
 function Send-DiscordNotification {
-    param([string]$WebhookUrl, [string]$Message, [string]$Title, [string]$ImageUrl)
+    param(
+        [string]$WebhookUrl,
+        [string]$Message,
+        [string]$Title,
+        [string]$ImageUrl,
+        [string]$MentionPrefix,
+        [hashtable]$AllowedMentions
+    )
     try {
+        $Payload = @{}
+        if ($AllowedMentions) { $Payload.allowed_mentions = $AllowedMentions }
+
         if ($Title -or $ImageUrl) {
+            # Mentions only ping when they're in the message "content", not inside an embed.
             $Embed = @{ description = $Message; color = 0x5865F2 }
             if ($Title) { $Embed.title = $Title }
             if ($ImageUrl) { $Embed.image = @{ url = $ImageUrl } }
-            $Payload = @{ embeds = @($Embed) } | ConvertTo-Json -Depth 4 -Compress
+            $Payload.embeds = @($Embed)
+            if ($MentionPrefix) { $Payload.content = $MentionPrefix }
         }
         else {
-            $Payload = @{ content = $Message } | ConvertTo-Json -Compress
+            $Payload.content = if ($MentionPrefix) { "$MentionPrefix $Message" } else { $Message }
         }
-        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType 'application/json' | Out-Null
+
+        $Json = $Payload | ConvertTo-Json -Depth 4 -Compress
+        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Json -ContentType 'application/json' | Out-Null
         return $true
     }
     catch {
@@ -260,6 +285,7 @@ $TimestampCol = Get-ColIndex @('Timestamp', 'Zeitstempel')
 $NachrichtCol = Get-ColIndex @('Nachricht')
 $TitelCol = Get-ColIndex @('Titel (optional)', 'Titel')
 $BildUrlCol = Get-ColIndex @('Bild-URL (optional)', 'Bild-URL')
+$MentionCol = Get-ColIndex @('Wen benachrichtigen? (optional)', 'Wen benachrichtigen?')
 $ZeitOptionCol = Get-ColIndex @('Zeit-Option')
 $MinutenCol = Get-ColIndex @('Minuten')
 $DatumCol = Get-ColIndex @('Datum')
@@ -374,7 +400,37 @@ foreach ($Row in ($Values | Select-Object -Skip 1)) {
     if ($ShouldSend) {
         $Titel = Get-Cell $Row $TitelCol
         $BildUrl = Get-Cell $Row $BildUrlCol
-        if (Send-DiscordNotification -WebhookUrl $WebhookUrl -Message $Nachricht -Title $Titel -ImageUrl $BildUrl) {
+
+        # "Wen benachrichtigen?" is a Checkboxes question too - map selected labels to actual
+        # Discord mention syntax. Mentions only ping when they're in "content", not in an embed,
+        # and only for roles/parse-types explicitly whitelisted via "allowed_mentions".
+        $MentionRaw = Get-Cell $Row $MentionCol
+        $MentionLabels = @()
+        if ($MentionRaw) { $MentionLabels = $MentionRaw -split ',\s*' | ForEach-Object { $_.Trim() } }
+
+        $MentionParts = @()
+        $AllowedRoles = @()
+        $ParseEveryone = $false
+        foreach ($Label in $MentionLabels) {
+            switch ($Label) {
+                'Everyone' { $MentionParts += '@everyone'; $ParseEveryone = $true }
+                'Gildenleitung' {
+                    if ($RoleIdGildenleitung) { $MentionParts += "<@&$RoleIdGildenleitung>"; $AllowedRoles += $RoleIdGildenleitung }
+                    else { Write-Warning "Zeile $RowNumber`: 'Gildenleitung' ausgewählt, aber DISCORD_ROLE_ID_GILDENLEITUNG ist nicht gesetzt." }
+                }
+                'User' {
+                    if ($RoleIdUser) { $MentionParts += "<@&$RoleIdUser>"; $AllowedRoles += $RoleIdUser }
+                    else { Write-Warning "Zeile $RowNumber`: 'User' ausgewählt, aber DISCORD_ROLE_ID_USER ist nicht gesetzt." }
+                }
+                default { Write-Warning "Zeile $RowNumber`: Unbekannte Mention-Option '$Label'." }
+            }
+        }
+        $MentionPrefix = $MentionParts -join ' '
+        $AllowedMentions = @{ parse = @(); roles = $AllowedRoles; users = @() }
+        if ($ParseEveryone) { $AllowedMentions.parse = @('everyone') }
+
+        if (Send-DiscordNotification -WebhookUrl $WebhookUrl -Message $Nachricht -Title $Titel -ImageUrl $BildUrl `
+                -MentionPrefix $MentionPrefix -AllowedMentions $AllowedMentions) {
             $SentCount++
             foreach ($Key in $PostSendUpdates.Keys) {
                 $Updates += @{ Row = $RowNumber; Col = $Key; Value = $PostSendUpdates[$Key] }

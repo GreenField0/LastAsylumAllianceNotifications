@@ -14,6 +14,7 @@ Fragen (Titel exakt so, damit das Skript sie findet):
 | Nachricht | Absatz (Text) | Pflichtfeld |
 | Titel (optional) | Kurzantwort (Text) | wird als Embed-Titel angezeigt |
 | Bild-URL (optional) | Kurzantwort (Text) | Link zu einem Bild (z.B. Imgur, Discord-CDN), wird als Embed-Bild angezeigt |
+| Wen benachrichtigen? (optional) | Kästchen (Checkboxen) | `Everyone`, `Gildenleitung`, `User` - Mehrfachauswahl möglich |
 | Zeit-Option | Multiple Choice | `Sofort`, `In X Minuten`, `An einem Datum`, `Wiederkehrend` |
 | Minuten | Kurzantwort (Zahl) | nur für "In X Minuten" |
 | Datum | Datum | nur für "An einem Datum" |
@@ -67,6 +68,13 @@ Den Formular-Link nur an R4/R5 weitergeben.
 | `DISCORD_WEBHOOK_URL_CUSTOM` | Webhook-URL des Ziel-Channels |
 | `GOOGLE_SHEET_ID` | Spreadsheet-ID aus Schritt 2 |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | Kompletter Inhalt der JSON-Key-Datei aus Schritt 3 |
+| `DISCORD_ROLE_ID_GILDENLEITUNG` | Rollen-ID der Gildenleitung-Rolle (optional, nur für diese Mention nötig) |
+| `DISCORD_ROLE_ID_USER` | Rollen-ID der User-Rolle (optional, nur für diese Mention nötig) |
+
+Rollen-ID herausfinden: Discord-Einstellungen → Erweitert → Entwicklermodus aktivieren, dann in den
+Server-Einstellungen unter "Rollen" per Rechtsklick auf die Rolle → "ID kopieren". Damit ein
+Rollen-Mention wirklich pingt, muss außerdem in den Channel-Berechtigungen "@everyone erwähnen"
+bzw. die jeweilige Rollen-Berechtigung erlaubt sein.
 
 Der Workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) prüft alle 5
 Minuten fällige Benachrichtigungen und ruft [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1) auf.
