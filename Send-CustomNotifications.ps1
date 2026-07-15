@@ -14,9 +14,16 @@
     This script authenticates to the Google Sheets API using a service-account JWT
     (self-signed, RS256 - no extra PowerShell modules required), reads all form
     responses, determines which ones are due, sends them to Discord, and writes the
-    resulting status back to the sheet (Status / LetzterVersand columns) so nothing
-    is sent twice. Editing or deleting a row in the sheet is enough to change or
+    resulting status back to the sheet (Status / LetzterVersand / Discord-Message-ID columns)
+    so nothing is sent twice. Editing or deleting a row in the sheet is enough to change or
     cancel a notification - there is no separate "admin UI".
+
+    Each sent message's Discord message ID is written back into the "Discord-Message-ID"
+    column. On every run the script compares the IDs currently present in the sheet against
+    the IDs it remembers from the previous run (state file, committed back to the repo by the
+    workflow): any ID that disappeared - because its row was deleted, or because a recurring
+    reminder got superseded by this week's new message - is deleted from Discord too, so only
+    the current message ever remains.
 
     Expected column headers in the response sheet (exact match, case-sensitive):
       Timestamp | Zeitstempel   (added automatically by Google Forms)
@@ -33,6 +40,7 @@
       End-Datum (optional)
       Status                     (script-managed - add manually, leave blank)
       LetzterVersand             (script-managed - add manually, leave blank)
+      Discord-Message-ID         (script-managed - add manually, leave blank)
 
 .PARAMETER WebhookUrl
     The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL_CUSTOM.
@@ -58,6 +66,10 @@
     Discord role ID to ping when "User" is selected. Defaults to the environment
     variable DISCORD_ROLE_ID_USER.
 
+.PARAMETER StateFilePath
+    Path to a small file remembering which Discord message IDs were known after the last
+    run, so removed/superseded ones can be deleted. Defaults to '.\.custom-notifications-known-ids.txt'.
+
 .INPUTS
     None.
 
@@ -75,7 +87,8 @@ param (
     [string]$SheetName = 'Formularantworten 1',
     [string]$TimeZoneId = 'Europe/Berlin',
     [string]$RoleIdGildenleitung = $env:DISCORD_ROLE_ID_GILDENLEITUNG,
-    [string]$RoleIdUser = $env:DISCORD_ROLE_ID_USER
+    [string]$RoleIdUser = $env:DISCORD_ROLE_ID_USER,
+    [string]$StateFilePath = '.\.custom-notifications-known-ids.txt'
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -218,13 +231,15 @@ function Send-DiscordNotification {
             $Payload.content = if ($MentionPrefix) { "$MentionPrefix $Message" } else { $Message }
         }
 
+        # '?wait=true' makes Discord return the created message (incl. its ID) instead of an
+        # empty response, so we can store it and delete it again later if needed.
         $Json = $Payload | ConvertTo-Json -Depth 4 -Compress
-        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Json -ContentType 'application/json' | Out-Null
-        return $true
+        $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $Json -ContentType 'application/json'
+        return [pscustomobject]@{ Success = $true; MessageId = $Response.id }
     }
     catch {
         Write-Warning "Discord-Versand fehlgeschlagen: $_"
-        return $false
+        return [pscustomobject]@{ Success = $false; MessageId = $null }
     }
 }
 
@@ -295,10 +310,27 @@ $UhrzeitWiederkehrendCol = Get-ColIndex @('Uhrzeit (Wiederkehrend)')
 $EndDatumCol = Get-ColIndex @('End-Datum (optional)', 'End-Datum')
 $StatusCol = Get-ColIndex @('Status')
 $LetzterVersandCol = Get-ColIndex @('LetzterVersand')
+$MessageIdCol = Get-ColIndex @('Discord-Message-ID', 'Message-ID')
 
 if (-not $NachrichtCol -or -not $ZeitOptionCol -or -not $StatusCol -or -not $LetzterVersandCol) {
     Write-Error "Pflichtspalten fehlen im Sheet (benötigt: Nachricht, Zeit-Option, Status, LetzterVersand). Bitte 'Status' und 'LetzterVersand' als leere Spalten am Ende ergänzen."
     exit 1
+}
+
+# Optional columns fail silently by design (older rows may not have them yet), but a missing
+# column because of a typo/renamed form question is a common source of "feature does nothing"
+# bugs - so log which optional columns were actually detected.
+$OptionalColumns = [ordered]@{
+    'Titel'                = $TitelCol
+    'Bild-URL'             = $BildUrlCol
+    'Wen benachrichtigen?' = $MentionCol
+    'End-Datum'            = $EndDatumCol
+    'Discord-Message-ID'   = $MessageIdCol
+}
+foreach ($Name in $OptionalColumns.Keys) {
+    if (-not $OptionalColumns[$Name]) {
+        Write-Warning "Optionale Spalte '$Name' wurde NICHT gefunden - zugehöriges Feature bleibt inaktiv. Gefundene Header im Sheet: $($HeaderRow -join ' | ')"
+    }
 }
 
 # --- 4. Determine "now" in the configured time zone -----------------------------
@@ -317,12 +349,20 @@ $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZ
 $Updates = @()
 $SentCount = 0
 $RowNumber = 1
+# Tracks the Discord message ID belonging to each still-existing row - initialized from the
+# sheet, overwritten when a row sends a new message. Used at the end to spot IDs that vanished
+# (row deleted, or a recurring reminder got replaced by this week's message) so they can be
+# deleted from Discord too.
+$RowMessageId = @{}
 
 foreach ($Row in ($Values | Select-Object -Skip 1)) {
     $RowNumber++
 
     $Nachricht = Get-Cell $Row $NachrichtCol
     if (-not $Nachricht) { continue }
+
+    $ExistingMessageId = Get-Cell $Row $MessageIdCol
+    if ($ExistingMessageId) { $RowMessageId[$RowNumber] = $ExistingMessageId }
 
     $ZeitOption = Get-Cell $Row $ZeitOptionCol
     $Status = Get-Cell $Row $StatusCol
@@ -429,11 +469,16 @@ foreach ($Row in ($Values | Select-Object -Skip 1)) {
         $AllowedMentions = @{ parse = @(); roles = $AllowedRoles; users = @() }
         if ($ParseEveryone) { $AllowedMentions.parse = @('everyone') }
 
-        if (Send-DiscordNotification -WebhookUrl $WebhookUrl -Message $Nachricht -Title $Titel -ImageUrl $BildUrl `
-                -MentionPrefix $MentionPrefix -AllowedMentions $AllowedMentions) {
+        $SendResult = Send-DiscordNotification -WebhookUrl $WebhookUrl -Message $Nachricht -Title $Titel -ImageUrl $BildUrl `
+            -MentionPrefix $MentionPrefix -AllowedMentions $AllowedMentions
+        if ($SendResult.Success) {
             $SentCount++
             foreach ($Key in $PostSendUpdates.Keys) {
                 $Updates += @{ Row = $RowNumber; Col = $Key; Value = $PostSendUpdates[$Key] }
+            }
+            if ($MessageIdCol -and $SendResult.MessageId) {
+                $Updates += @{ Row = $RowNumber; Col = $MessageIdCol; Value = $SendResult.MessageId }
+                $RowMessageId[$RowNumber] = $SendResult.MessageId
             }
         }
         else {
@@ -442,7 +487,30 @@ foreach ($Row in ($Values | Select-Object -Skip 1)) {
     }
 }
 
-# --- 6. Write status/timestamp updates back to the sheet in one batch -----------
+# --- 6. Delete Discord messages whose row disappeared or got superseded --------
+
+$DeletedCount = 0
+if ($MessageIdCol) {
+    $FinalIds = @($RowMessageId.Values | Where-Object { $_ })
+    $PreviousIds = @()
+    if (Test-Path $StateFilePath) {
+        $PreviousIds = @(Get-Content -Path $StateFilePath -ErrorAction SilentlyContinue | Where-Object { $_ })
+    }
+
+    foreach ($Id in ($PreviousIds | Where-Object { $_ -notin $FinalIds })) {
+        try {
+            Invoke-RestMethod -Uri "${WebhookUrl}/messages/$Id" -Method Delete
+            $DeletedCount++
+        }
+        catch {
+            Write-Warning "Konnte Discord-Nachricht $Id nicht löschen (evtl. bereits manuell gelöscht): $_"
+        }
+    }
+
+    Set-Content -Path $StateFilePath -Value $FinalIds
+}
+
+# --- 7. Write status/timestamp updates back to the sheet in one batch -----------
 
 if ($Updates.Count -gt 0) {
     $Data = @(
@@ -465,4 +533,4 @@ if ($Updates.Count -gt 0) {
     }
 }
 
-Write-Output "Fertig. $SentCount Benachrichtigung(en) gesendet, $($Updates.Count) Sheet-Zelle(n) aktualisiert."
+Write-Output "Fertig. $SentCount Benachrichtigung(en) gesendet, $($Updates.Count) Sheet-Zelle(n) aktualisiert, $DeletedCount Discord-Nachricht(en) gelöscht."

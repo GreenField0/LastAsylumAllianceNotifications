@@ -50,8 +50,13 @@ Den Formular-Link nur an R4/R5 weitergeben.
 ### 2. Antworten-Sheet vorbereiten
 
 - Im Form-Editor unter "Antworten" auf das Sheets-Symbol klicken → verknüpftes Sheet erstellen.
-- Im Sheet zwei weitere Spalten **manuell** ergänzen (Header, sonst leer lassen): `Status`, `LetzterVersand`.
+- Im Sheet zwei weitere Spalten **manuell** ergänzen (Header, sonst leer lassen): `Status`, `LetzterVersand`, `Discord-Message-ID`.
 - Notiere die Spreadsheet-ID aus der URL (`.../d/<ID>/edit`).
+
+Sobald `Discord-Message-ID` existiert, merkt sich das Skript die ID jeder gesendeten Nachricht.
+Wird eine Zeile im Sheet gelöscht, oder wird eine wiederkehrende Erinnerung durch die nächste
+Woche ersetzt, löscht das Skript die zugehörige Discord-Nachricht automatisch - so bleibt immer
+nur die aktuelle stehen.
 
 ### 3. Google Service Account (kostenlos, keine Kreditkarte nötig)
 
