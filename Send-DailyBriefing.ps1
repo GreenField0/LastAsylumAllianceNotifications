@@ -31,7 +31,9 @@
 param (
     [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
     [string]$SchedulePath = ".\schedule.json",
-    [string]$MessageIdStorePath = ".\.last-message-id.txt"
+    [string]$MessageIdStorePath = ".\.last-message-id.txt",
+    [string]$TelegramBotToken = $env:TELEGRAM_BOT_TOKEN,
+    [string]$TelegramChatId = $env:TELEGRAM_CHAT_ID
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -108,4 +110,42 @@ try {
 catch {
     Write-Error "Failed to send webhook. Exception: $_"
     exit 1
+}
+
+# 8. Send Telegram notification (if credentials are provided)
+if (-not [string]::IsNullOrWhiteSpace($TelegramBotToken) -and -not [string]::IsNullOrWhiteSpace($TelegramChatId)) {
+    # Telegram supports a subset of HTML; build a plain-text version of the content.
+    # The 'content' field from schedule.json is Markdown intended for Discord, so we
+    # strip Discord-specific syntax and send it as-is (Telegram renders basic Markdown
+    # with parse_mode=Markdown).
+    $TelegramText = $TodayData.content
+
+    $TelegramPayload = @{
+        chat_id    = $TelegramChatId
+        text       = $TelegramText
+        parse_mode = 'Markdown'
+    } | ConvertTo-Json -Depth 3
+
+    try {
+        Invoke-RestMethod -Uri "https://api.telegram.org/bot${TelegramBotToken}/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
+        Write-Output "Successfully sent daily briefing for $CurrentDay to Telegram."
+
+        # If there is an image URL, send it as a separate photo message
+        if (-not [string]::IsNullOrWhiteSpace($TodayData.image)) {
+            $TelegramPhotoPayload = @{
+                chat_id = $TelegramChatId
+                photo   = $TodayData.image
+            } | ConvertTo-Json -Depth 3
+
+            Invoke-RestMethod -Uri "https://api.telegram.org/bot${TelegramBotToken}/sendPhoto" -Method Post -Body $TelegramPhotoPayload -ContentType 'application/json' | Out-Null
+            Write-Output "Successfully sent schedule image for $CurrentDay to Telegram."
+        }
+    }
+    catch {
+        # Telegram failure is non-fatal; Discord was already sent successfully.
+        Write-Warning "Failed to send Telegram notification. Exception: $_"
+    }
+}
+else {
+    Write-Verbose "Telegram credentials not set – skipping Telegram notification."
 }
