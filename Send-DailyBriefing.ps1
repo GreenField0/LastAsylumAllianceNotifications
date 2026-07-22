@@ -29,14 +29,22 @@
 #>
 [CmdletBinding()]
 param (
+    # --- Channels ---
+    [bool]$EnableDiscord = $true,
+    [bool]$EnableTelegram = $true,
+    [bool]$EnableCallMeBot = $false,
+
+    # --- Credentials ---
     [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
     [string]$SchedulePath = ".\schedule.json",
     [string]$MessageIdStorePath = ".\.last-message-id.txt",
     [string]$TelegramBotToken = $env:TELEGRAM_BOT_TOKEN,
-    [string]$TelegramChatId = $env:TELEGRAM_CHAT_ID
+    [string]$TelegramChatId = $env:TELEGRAM_CHAT_ID,
+    [string]$CallMeBotPhone = $env:CALLMEBOT_PHONE,
+    [string]$CallMeBotApiKey = $env:CALLMEBOT_APIKEY
 )
 
-if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
+if ($EnableDiscord -and [string]::IsNullOrWhiteSpace($WebhookUrl)) {
     Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
     exit 1
 }
@@ -79,7 +87,7 @@ $Payload = [ordered]@{
 }
 
 # 5. Delete the previous day's message (if any) so only the current one remains
-if (Test-Path $MessageIdStorePath) {
+if ($EnableDiscord -and (Test-Path $MessageIdStorePath)) {
     $PreviousMessageId = (Get-Content -Raw -Path $MessageIdStorePath).Trim()
     if (-not [string]::IsNullOrWhiteSpace($PreviousMessageId)) {
         try {
@@ -94,26 +102,31 @@ if (Test-Path $MessageIdStorePath) {
 }
 
 # 6. Execute HTTP POST Request to Discord
-# Depth 4 is required to correctly serialize the nested embed array/hashtable
-# '?wait=true' makes Discord return the created message (incl. its ID) instead of an empty response
-$JsonPayload = $Payload | ConvertTo-Json -Depth 4
+if ($EnableDiscord) {
+    # Depth 4 is required to correctly serialize the nested embed array/hashtable
+    # '?wait=true' makes Discord return the created message (incl. its ID) instead of an empty response
+    $JsonPayload = $Payload | ConvertTo-Json -Depth 4
 
-try {
-    $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
-    Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
+    try {
+        $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
+        Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
 
-    # 7. Remember the new message ID for the next run
-    if ($Response.id) {
-        Set-Content -Path $MessageIdStorePath -Value $Response.id -NoNewline
+        # 7. Remember the new message ID for the next run
+        if ($Response.id) {
+            Set-Content -Path $MessageIdStorePath -Value $Response.id -NoNewline
+        }
+    }
+    catch {
+        Write-Error "Failed to send webhook. Exception: $_"
+        exit 1
     }
 }
-catch {
-    Write-Error "Failed to send webhook. Exception: $_"
-    exit 1
+else {
+    Write-Verbose "Discord disabled – skipping."
 }
 
-# 8. Send Telegram notification (if credentials are provided)
-if (-not [string]::IsNullOrWhiteSpace($TelegramBotToken) -and -not [string]::IsNullOrWhiteSpace($TelegramChatId)) {
+# 8. Send Telegram notification (if enabled and credentials are provided)
+if ($EnableTelegram -and -not [string]::IsNullOrWhiteSpace($TelegramBotToken) -and -not [string]::IsNullOrWhiteSpace($TelegramChatId)) {
     # Telegram supports a subset of HTML; build a plain-text version of the content.
     # The 'content' field from schedule.json is Markdown intended for Discord, so we
     # strip Discord-specific syntax and send it as-is (Telegram renders basic Markdown
@@ -147,5 +160,28 @@ if (-not [string]::IsNullOrWhiteSpace($TelegramBotToken) -and -not [string]::IsN
     }
 }
 else {
-    Write-Verbose "Telegram credentials not set – skipping Telegram notification."
+    Write-Verbose "Telegram disabled or credentials not set – skipping Telegram notification."
+}
+
+# 9. Send WhatsApp notification via CallMeBot (if enabled and credentials are provided)
+if ($EnableCallMeBot -and -not [string]::IsNullOrWhiteSpace($CallMeBotPhone) -and -not [string]::IsNullOrWhiteSpace($CallMeBotApiKey)) {
+    # Convert the most common Discord markdown tokens to WhatsApp equivalents (best-effort)
+    $WhatsAppText = $TodayData.content
+    $WhatsAppText = $WhatsAppText -replace '\*\*(.+?)\*\*', '*$1*'  # **bold** -> *bold*
+    $WhatsAppText = $WhatsAppText -replace '~~(.+?)~~', '~$1~'  # ~~strike~~ -> ~strike~
+
+    $EncodedText = [System.Uri]::EscapeDataString($WhatsAppText)
+    $CallMeBotUri = "https://api.callmebot.com/whatsapp.php?phone=${CallMeBotPhone}&text=${EncodedText}&apikey=${CallMeBotApiKey}"
+
+    try {
+        Invoke-RestMethod -Uri $CallMeBotUri -Method Get | Out-Null
+        Write-Output "Successfully sent daily briefing for $CurrentDay to WhatsApp via CallMeBot."
+    }
+    catch {
+        # CallMeBot failure is non-fatal.
+        Write-Warning "Failed to send WhatsApp notification via CallMeBot. Exception: $_"
+    }
+}
+else {
+    Write-Verbose "CallMeBot disabled or credentials not set – skipping WhatsApp notification."
 }
