@@ -164,7 +164,7 @@ function ConvertTo-ColumnLetter {
     while ($N -gt 0) {
         $Rem = ($N - 1) % 26
         $Letter = [char](65 + $Rem) + $Letter
-        $N = [int](($N - 1) / 26)
+        $N = [Math]::Floor(($N - 1) / 26)
     }
     return $Letter
 }
