@@ -287,8 +287,19 @@ if (-not $Values -or $Values.Count -lt 2) {
 # --- 3. Map header names to column indices -------------------------------------
 
 $HeaderRow = $Values[0]
+Write-Output "DEBUG: Sheet header row ($($HeaderRow.Count) columns): $($HeaderRow -join ' | ')"
+
 $ColMap = @{}
-for ($i = 0; $i -lt $HeaderRow.Count; $i++) { $ColMap[$HeaderRow[$i]] = $i + 1 }
+for ($i = 0; $i -lt $HeaderRow.Count; $i++) {
+    $Header = $HeaderRow[$i]
+    if ([string]::IsNullOrWhiteSpace($Header)) { continue }
+    if ($ColMap.ContainsKey($Header)) {
+        Write-Warning "Doppelter Spalten-Header '$Header' in Spalte $($i + 1) ignoriert (erste Fundstelle: Spalte $($ColMap[$Header]) wird verwendet)."
+    }
+    else {
+        $ColMap[$Header] = $i + 1
+    }
+}
 
 function Get-ColIndex {
     param([string[]]$Names)
@@ -311,6 +322,8 @@ $EndDatumCol = Get-ColIndex @('End-Datum (optional)', 'End-Datum')
 $StatusCol = Get-ColIndex @('Status')
 $LetzterVersandCol = Get-ColIndex @('LetzterVersand')
 $MessageIdCol = Get-ColIndex @('Discord-Message-ID', 'Message-ID')
+
+Write-Output "DEBUG: Spalten-Mapping: Status=$StatusCol, LetzterVersand=$LetzterVersandCol, Discord-Message-ID=$MessageIdCol, Nachricht=$NachrichtCol"
 
 if (-not $NachrichtCol -or -not $ZeitOptionCol -or -not $StatusCol -or -not $LetzterVersandCol) {
     Write-Error "Pflichtspalten fehlen im Sheet (benötigt: Nachricht, Zeit-Option, Status, LetzterVersand). Bitte 'Status' und 'LetzterVersand' als leere Spalten am Ende ergänzen."
