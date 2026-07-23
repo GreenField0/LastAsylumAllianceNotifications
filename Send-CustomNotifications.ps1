@@ -88,7 +88,9 @@ param (
     [string]$TimeZoneId = 'Europe/Berlin',
     [string]$RoleIdGildenleitung = $env:DISCORD_ROLE_ID_GILDENLEITUNG,
     [string]$RoleIdUser = $env:DISCORD_ROLE_ID_USER,
-    [string]$StateFilePath = '.\.custom-notifications-known-ids.txt'
+    [string]$StateFilePath = '.\.custom-notifications-known-ids.txt',
+    [string]$TelegramBotToken = $env:TELEGRAM_BOT_TOKEN,
+    [string]$TelegramChatId = $env:TELEGRAM_CHAT_ID
 )
 
 if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
@@ -240,6 +242,35 @@ function Send-DiscordNotification {
     catch {
         Write-Warning "Discord-Versand fehlgeschlagen: $_"
         return [pscustomobject]@{ Success = $false; MessageId = $null }
+    }
+}
+
+function Send-TelegramNotification {
+    param(
+        [string]$BotToken,
+        [string]$ChatId,
+        [string]$Message,
+        [string]$Title
+    )
+    if ([string]::IsNullOrWhiteSpace($BotToken) -or [string]::IsNullOrWhiteSpace($ChatId)) { return }
+
+    # Combine title and message; Discord role mentions (<@&...>) are stripped as they
+    # are meaningless outside Discord.
+    $Text = $Message -replace '<@&\d+>', ''
+    if (-not [string]::IsNullOrWhiteSpace($Title)) { $Text = "*$Title*`n$Text" }
+    $Text = $Text.Trim()
+
+    $TelegramPayload = @{
+        chat_id    = $ChatId
+        text       = $Text
+        parse_mode = 'Markdown'
+    } | ConvertTo-Json -Depth 3
+
+    try {
+        Invoke-RestMethod -Uri "https://api.telegram.org/bot${BotToken}/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
+    }
+    catch {
+        Write-Warning "Telegram-Versand fehlgeschlagen: $_"
     }
 }
 
@@ -486,6 +517,7 @@ foreach ($Row in ($Values | Select-Object -Skip 1)) {
             -MentionPrefix $MentionPrefix -AllowedMentions $AllowedMentions
         if ($SendResult.Success) {
             $SentCount++
+            Send-TelegramNotification -BotToken $TelegramBotToken -ChatId $TelegramChatId -Message $Nachricht -Title $Titel
             foreach ($Key in $PostSendUpdates.Keys) {
                 $Updates += @{ Row = $RowNumber; Col = $Key; Value = $PostSendUpdates[$Key] }
             }
