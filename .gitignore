@@ -1,0 +1,3 @@
+# Google Service Account key files – must never be committed
+*.json
+!schedule.json
