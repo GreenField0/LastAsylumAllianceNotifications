@@ -2,8 +2,8 @@ name: Custom Notifications
 
 on:
   schedule:
-    # Polls every 5 minutes for due custom notifications (Google Sheet)
-    - cron: '*/5 * * * *'
+    # Polls every 15 minutes for due custom notifications (Google Sheet)
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     # Allows manual triggering for testing purposes
 
@@ -26,6 +26,8 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
           DISCORD_ROLE_ID_GILDENLEITUNG: ${{ secrets.DISCORD_ROLE_ID_GILDENLEITUNG }}
           DISCORD_ROLE_ID_USER: ${{ secrets.DISCORD_ROLE_ID_USER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           ./Send-CustomNotifications.ps1
 
