@@ -526,6 +526,11 @@ if ($MessageIdCol) {
 # --- 7. Write status/timestamp updates back to the sheet in one batch -----------
 
 if ($Updates.Count -gt 0) {
+    Write-Output "DEBUG: $($Updates.Count) Updates werden geschrieben:"
+    foreach ($Update in $Updates) {
+        Write-Output "  -> Row=$($Update.Row), Col=$($Update.Col) [$(ConvertTo-ColumnLetter $Update.Col)], Value='$($Update.Value)'"
+    }
+
     $Data = @(
         foreach ($Update in $Updates) {
             @{
