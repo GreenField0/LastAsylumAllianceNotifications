@@ -77,13 +77,13 @@ if ($null -eq $TodayData) {
 # 4. Construct JSON Payload with Embed Structure for Image
 $Payload = [ordered]@{
     content = $TodayData.content
-    embeds  = @(
-        @{
-            image = @{
-                url = $TodayData.image
-            }
-        }
-    )
+    # embeds  = @(
+    #     @{
+    #         image = @{
+    #             url = $TodayData.image
+    #         }
+    #     }
+    # )
 }
 
 # 5. Delete the previous day's message (if any) so only the current one remains
@@ -142,17 +142,6 @@ if ($EnableTelegram -and -not [string]::IsNullOrWhiteSpace($TelegramBotToken) -a
     try {
         Invoke-RestMethod -Uri "https://api.telegram.org/bot${TelegramBotToken}/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
         Write-Output "Successfully sent daily briefing for $CurrentDay to Telegram."
-
-        # If there is an image URL, send it as a separate photo message
-        if (-not [string]::IsNullOrWhiteSpace($TodayData.image)) {
-            $TelegramPhotoPayload = @{
-                chat_id = $TelegramChatId
-                photo   = $TodayData.image
-            } | ConvertTo-Json -Depth 3
-
-            Invoke-RestMethod -Uri "https://api.telegram.org/bot${TelegramBotToken}/sendPhoto" -Method Post -Body $TelegramPhotoPayload -ContentType 'application/json' | Out-Null
-            Write-Output "Successfully sent schedule image for $CurrentDay to Telegram."
-        }
     }
     catch {
         # Telegram failure is non-fatal; Discord was already sent successfully.
