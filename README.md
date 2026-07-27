@@ -1,5 +1,8 @@
 # LastAsylum
 
+*🇩🇪 [Hier geht es zur deutschen Version (German Version)](README_de.md)*  
+*📅 [View Alliance Schedule (Wochenübersicht & Überlebenskampf)](ALLIANZ-ZEITPLAN.md)*
+
 Automated notifications for the LastAsylum guild — daily schedule briefings and custom R4/R5 announcements delivered to Discord and Telegram via GitHub Actions.
 
 ---
@@ -95,84 +98,18 @@ Once `Discord-Message-ID` exists, the script tracks each sent message's ID. If a
 
 The workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) checks for due notifications every 15 minutes and runs [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1).
 
-R4/R5 können eigene Discord-Benachrichtigungen über ein Google Form anlegen. Bearbeiten/Löschen
-geschieht direkt im verknüpften Google Sheet (Zeile ändern bzw. löschen).
+---
 
-### 1. Google Form erstellen
+## ⚖️ Disclaimer & Legal Notice
 
-Fragen (Titel exakt so, damit das Skript sie findet):
+This repository is an **unofficial, fan-made community tool** designed to assist players and alliance leaders (R4/R5) in managing notifications and schedules for their guild.
 
-| Frage | Typ | Optionen / Hinweis |
-|---|---|---|
-| Nachricht | Absatz (Text) | Pflichtfeld |
-| Titel (optional) | Kurzantwort (Text) | wird als Embed-Titel angezeigt |
-| Bild-URL (optional) | Kurzantwort (Text) | Link zu einem Bild (z.B. Imgur, Discord-CDN), wird als Embed-Bild angezeigt |
-| Wen benachrichtigen? (optional) | Kästchen (Checkboxen) | `Everyone`, `Gildenleitung`, `User` - Mehrfachauswahl möglich |
-| Zeit-Option | Multiple Choice | `Sofort`, `In X Minuten`, `An einem Datum`, `Wiederkehrend` |
-| Minuten | Kurzantwort (Zahl) | nur für "In X Minuten" |
-| Datum | Datum | nur für "An einem Datum" |
-| Uhrzeit (Datum) | Uhrzeit | nur für "An einem Datum" |
-| Wochentag | Kästchen (Checkboxen) | `Montag`..`Sonntag`, Mehrfachauswahl möglich, nur für "Wiederkehrend" |
-| Uhrzeit (Wiederkehrend) | Uhrzeit | nur für "Wiederkehrend" |
-| End-Datum (optional) | Datum | nur für "Wiederkehrend" |
+* **No Affiliation:** This project is not affiliated with, endorsed, sponsored, or specifically approved by the developers or publishers of the mobile game *Last Asylum*.
+* **Trademarks:** All game titles, names, assets, and related trademarks are property of their respective owners.
+* **No Warranty:** This tool is provided "as is" without warranty of any kind. See the [LICENSE](LICENSE) file for more details.
 
-#### Bedingte Anzeige (Branching) einrichten
+---
 
-Branching funktioniert in Google Forms nur über **Abschnitte**, gesteuert von einer **Multiple
-Choice**- oder **Dropdown**-Frage (Checkboxen/Kurzantwort können keine Abschnitte auslösen) - passt
-hier also zu "Zeit-Option":
+## 📄 License
 
-1. Vier Abschnitte anlegen (Symbol "Abschnitt hinzufügen" in der rechten Werkzeugleiste):
-   - Abschnitt 1: `Nachricht` + `Zeit-Option`
-   - Abschnitt 2: `Minuten`
-   - Abschnitt 3: `Datum` + `Uhrzeit (Datum)`
-   - Abschnitt 4: `Wochentag` + `Uhrzeit (Wiederkehrend)` + `End-Datum (optional)`
-2. Bei der Frage "Zeit-Option" das ⋮-Menü öffnen → **"Bei Antwort zu Abschnitt wechseln"**
-   aktivieren. Pro Antwortoption erscheint ein Dropdown zum Zielabschnitt:
-   - `Sofort` → **Formular einreichen** (keine weiteren Felder nötig)
-   - `In X Minuten` → Abschnitt 2
-   - `An einem Datum` → Abschnitt 3
-   - `Wiederkehrend` → Abschnitt 4
-3. Bei den Abschnitten 2-4 jeweils das Abschnitts-Dropdown ("Weiter zu Abschnitt ...") auf
-   **"Formular einreichen"** setzen, sonst würde nach dem Ausfüllen automatisch zum nächsten
-   Abschnitt weitergesprungen.
-4. Mit der Vorschau (Augen-Symbol oben rechts) alle vier Pfade testen.
-
-Den Formular-Link nur an R4/R5 weitergeben.
-
-### 2. Antworten-Sheet vorbereiten
-
-- Im Form-Editor unter "Antworten" auf das Sheets-Symbol klicken → verknüpftes Sheet erstellen.
-- Im Sheet zwei weitere Spalten **manuell** ergänzen (Header, sonst leer lassen): `Status`, `LetzterVersand`, `Discord-Message-ID`.
-- Notiere die Spreadsheet-ID aus der URL (`.../d/<ID>/edit`).
-
-Sobald `Discord-Message-ID` existiert, merkt sich das Skript die ID jeder gesendeten Nachricht.
-Wird eine Zeile im Sheet gelöscht, oder wird eine wiederkehrende Erinnerung durch die nächste
-Woche ersetzt, löscht das Skript die zugehörige Discord-Nachricht automatisch - so bleibt immer
-nur die aktuelle stehen.
-
-### 3. Google Service Account (kostenlos, keine Kreditkarte nötig)
-
-1. [console.cloud.google.com](https://console.cloud.google.com) → neues Projekt anlegen.
-2. "APIs & Services" → "Library" → **Google Sheets API** aktivieren.
-3. "APIs & Services" → "Credentials" → "Create Credentials" → **Service Account**.
-4. Im Service Account → "Keys" → "Add Key" → "Create new key" → **JSON** herunterladen.
-5. Das Sheet aus Schritt 2 mit der E-Mail-Adresse des Service Accounts (`...@...iam.gserviceaccount.com`) als **Editor** teilen.
-
-### 4. GitHub Secrets setzen
-
-| Secret | Wert |
-|---|---|
-| `DISCORD_WEBHOOK_URL_CUSTOM` | Webhook-URL des Ziel-Channels |
-| `GOOGLE_SHEET_ID` | Spreadsheet-ID aus Schritt 2 |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Kompletter Inhalt der JSON-Key-Datei aus Schritt 3 |
-| `DISCORD_ROLE_ID_GILDENLEITUNG` | Rollen-ID der Gildenleitung-Rolle (optional, nur für diese Mention nötig) |
-| `DISCORD_ROLE_ID_USER` | Rollen-ID der User-Rolle (optional, nur für diese Mention nötig) |
-
-Rollen-ID herausfinden: Discord-Einstellungen → Erweitert → Entwicklermodus aktivieren, dann in den
-Server-Einstellungen unter "Rollen" per Rechtsklick auf die Rolle → "ID kopieren". Damit ein
-Rollen-Mention wirklich pingt, muss außerdem in den Channel-Berechtigungen "@everyone erwähnen"
-bzw. die jeweilige Rollen-Berechtigung erlaubt sein.
-
-Der Workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) prüft alle 5
-Minuten fällige Benachrichtigungen und ruft [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1) auf.
+This project is licensed under the [MIT License](LICENSE).
