@@ -1,3 +1,8 @@
+> 🌐 **Language / Sprache:** 🇩🇪 **Deutsch** | 🇺🇸 [English](SCHEDULE_en.md)  
+> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md)
+
+---
+
 # 🛡️ Allianz-Zeitplan: Wochenübersicht & Überlebenskampf
 
 Willkommen im offiziellen Zeitplan unserer Allianz! Hier findet ihr auf einen Blick alle wichtigen Termine, Punktequellen für das Allianz-Duell und die wechselnden Phasen des Überlebenskampfs.
@@ -14,7 +19,7 @@ In dieser Tabelle seht ihr genau, wofür es an welchem Wochentag Punkte gibt und
 | **Dienstag**<br>*(Tag 2)* | 🏗️ **Bauen & Rekrutierung** | • 1-Min.-Bau-Beschleunigung verwenden<br>• Gebäude-Macht erhöhen<br>• 1 UR Verdeckte Operation ausführen<br>• UR-Karawane entsenden<br>• Überlebende rekrutieren | • Falken-Quests aufbewahren<br>• Forschung starten, die morgen fertig wird |
 | **Mittwoch**<br>*(Tag 3)* | 🔬 **Forschung & Raben** | • Falken-Quest abschließen<br>• 1-Min.-Forschungs-Beschleunigung verwenden<br>• Studien-Schriftrolle verbrauchen<br>• Technologie-Macht erhöhen<br>• Raben-Ausrüstungstruhen öffnen | • Event-Items oder spezielle Belohnungen nicht vorzeitig einsammeln |
 | **Donnerstag**<br>*(Tag 4)* | 🦸 **Helden & Splitter** | • Gegengift verwenden<br>• Helden rekrutieren<br>• UR-, SSR- & SR-Helden-Splitter verbrauchen<br>• Fähigkeitsabzeichen verwenden | • Falken-Quests aufsparen<br>• Fertiggestellte Bauprojekte nicht abschließen (🔨 stehen lassen) |
-| **Freitag**<br>*(Tag 5)* | ⚡ **Bau, Forschung & Training** | • Falken-Quest abschließen<br>• 1-Min.-Beschleunigungen (Bau/Forschung/Training) nutzen<br>• Gebäude- & Technologie-Macht erhöhen<br>• Soldaten trainieren | • 🛡️ **Friedensschild aktivieren!**<br>• Ausrüstung für PvP überprüfen<br>• Truppen heilen & Angriffsformationen vorbereiten |
+| **Freitag**<br>*(Tag 5)* | ⚡ **Bau, Forschung & Training** | • Falken-Quest abschließen<br>• 1-Min.-Beschleunigungen (Bau/Forschung/Training) nutzen<br>• Gebäude- & Technologie-Macht erhöhen<br>• Soldaten trainieren | • 🛡️ **Schild aktivieren!**<br>• Ausrüstung für PvP überprüfen<br>• Truppen heilen & Angriffsformationen vorbereiten |
 | **Samstag**<br>*(Tag 6)* | ⚔️ **PvP & Beschleunigungen** | • 1-Min.-Beschleunigung verwenden<br>• 1 UR Verdeckte Operation ausführen<br>• UR-Karawane entsenden<br>• Besiegte & verlorene Soldaten | • Keine speziellen Vorbereitungen notwendig |
 | **Sonntag** | 🛡️ **Vorbereitung & Ruhezeit** | • *Keine Aufgaben im Duell* | • Falken-Quests für Montag aufsparen<br>• Ressourcensammler (bevorzugt Kräuter) so entsenden, dass sie nach 04:00 Uhr zurückkehren |
 
