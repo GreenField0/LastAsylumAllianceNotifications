@@ -254,16 +254,39 @@ function Send-TelegramNotification {
     )
     if ([string]::IsNullOrWhiteSpace($BotToken) -or [string]::IsNullOrWhiteSpace($ChatId)) { return }
 
-    # Combine title and message; Discord role mentions (<@&...>) are stripped as they
-    # are meaningless outside Discord.
-    $Text = $Message -replace '<@&\d+>', ''
-    if (-not [string]::IsNullOrWhiteSpace($Title)) { $Text = "*$Title*`n$Text" }
-    $Text = $Text.Trim()
+    # Strip Discord-specific mentions and pings
+    $Text = $Message -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
+
+    # HTML-escape special characters so literal < > & won't break Telegram HTML parsing
+    $Text = $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+
+    # Convert common Discord markdown formatting to Telegram HTML
+    # 1. Bullet points (* item or - item -> • item) BEFORE formatting tags
+    $Text = $Text -replace '(?m)^[\*\-]\s+', '• '
+    # 2. Headers (## Title -> <b>Title</b>)
+    $Text = $Text -replace '(?m)^#+\s*(.+)$', '<b>$1</b>'
+    # 3. Horizontal rules (--- -> clean separator line)
+    $Text = $Text -replace '(?m)^[-*_]{3,}\s*$', '──────────'
+    # 4. Bold (**text** -> <b>text</b>)
+    $Text = $Text -replace '\*\*(.+?)\*\*', '<b>$1</b>'
+    # 5. Strikethrough (~~text~~ -> <s>text</s>)
+    $Text = $Text -replace '~~(.+?)~~', '<s>$1</s>'
+    # 6. Italic (*text* or _text_ -> <i>text</i>)
+    $Text = $Text -replace '(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', '<i>$1</i>'
+    $Text = $Text -replace '_(.+?)_', '<i>$1</i>'
+
+    if (-not [string]::IsNullOrWhiteSpace($Title)) {
+        $CleanTitle = $Title.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+        $Text = "<b>$CleanTitle</b>`n`n$Text"
+    }
+
+    $Text = ($Text -replace '(\r?\n){3,}', "`n`n").Trim()
 
     $TelegramPayload = @{
-        chat_id    = $ChatId
-        text       = $Text
-        parse_mode = 'Markdown'
+        chat_id                  = $ChatId
+        text                     = $Text
+        parse_mode               = 'HTML'
+        disable_web_page_preview = $true
     } | ConvertTo-Json -Depth 3
 
     try {
