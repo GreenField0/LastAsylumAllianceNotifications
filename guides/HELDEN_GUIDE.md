@@ -54,4 +54,4 @@ Eure 5 Helden verteilen sich auf zwei Reihen: 2 vorne (Frontline) und 3 hinten (
 
 > [!TIP]
 > **Nutzt den Allianz-Shop!**  
-> Gebt keine echten Moneten aus, um an starke SSR- oder UR-Helden zu kommen. Durch tägliche Spenden und Event-Teilnahme sammelt ihr Allianz-Münzen. Im **Allianz-Shop** könnt ihr euch damit regelmäßig kostenlos wertvolle Helden-Splitter (wie z. B. für *Bella*) sichern und euren Frontline-Tank auf maximale Sterne bringen!
+> Gebt kein echtes Geld aus, um an starke SSR- oder UR-Helden zu kommen. Durch tägliche Spenden und Event-Teilnahme sammelt ihr Allianz-Münzen. Im **Allianz-Shop** könnt ihr euch damit regelmäßig kostenlos wertvolle Helden-Splitter (wie z. B. für *Bella*) sichern und euren Frontline-Tank auf maximale Sterne bringen!
