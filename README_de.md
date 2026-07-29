@@ -1,7 +1,7 @@
 # LastAsylum (Deutsche Anleitung)
 
 *🇺🇸 [Click here for the English Version](README.md)*  
-> 📌 **Allianz-Guides:** [📅 Zeitplan](guides/ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](guides/ALLIANZ_REGELN.md) | [🦸 Helden](guides/HELDEN_GUIDE.md) | [🦅 Raben](guides/RABEN_GUIDE.md) | [💎 Tipps](guides/ANFAENGER_TIPPS.md)
+> 📌 **Allianz-Guides:** [📅 Zeitplan](guides/ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](guides/ALLIANZ_REGELN.md) | [🦸 Helden](guides/HELDEN_GUIDE.md) | [🦅 Raben](guides/RABEN_GUIDE.md) | [💎 Tipps](guides/ANFAENGER_TIPPS.md) | [🎁 Gift Codes](guides/GIFT_CODES.md)
 
 Automatisierte Benachrichtigungen für die LastAsylum-Allianz – tägliche Zeitpläne und individuelle R4/R5-Ankündigungen, übermittelt an Discord und Telegram via GitHub Actions.
 

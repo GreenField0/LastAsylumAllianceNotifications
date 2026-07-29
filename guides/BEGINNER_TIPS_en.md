@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 [Deutsch](ANFAENGER_TIPPS.md) | 🇺🇸 **English**  
-> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md)
+> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md) | [🎁 Gift Codes](GIFT_CODES_en.md)
 
 ---
 
@@ -29,7 +29,7 @@ Diamonds are the most precious currency in the game. Wasting them early on will 
 Your stamina regenerates automatically over time. Once the bar reaches its cap (100/100 or 200/200), regeneration stops completely — meaning you are throwing away free energy!
 
 * **Never stay capped:** Use your stamina regularly!
-* **Auto-Scavenge:** Use this feature when you are short on time to quickly convert excess stamina into resources and experience.
+* **Quickly hunt Blight Monsters & Radar Quests:** Use the search and radar function on the world map when short on time or before sleeping to quickly spend stamina for resources, hero EXP, and loot.
 * **Rallies against Elite Blight:** Participate in alliance rallies as often as possible. They cost very little stamina but provide fantastic rewards for the whole alliance!
 
 ---

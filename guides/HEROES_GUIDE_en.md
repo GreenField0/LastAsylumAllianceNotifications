@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 [Deutsch](HELDEN_GUIDE.md) | 🇺🇸 **English**  
-> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md)
+> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md) | [🎁 Gift Codes](GIFT_CODES_en.md)
 
 ---
 
