@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 [Deutsch](ALLIANZ_REGELN.md) | 🇺🇸 **English**  
-> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md)
+> 📌 **Navigation:** [📅 Schedule](SCHEDULE_en.md) | [📜 Rules & SvS](ALLIANCE_RULES_en.md) | [🦸 Heroes](HEROES_GUIDE_en.md) | [🦅 Ravens](RAVENS_GUIDE_en.md) | [💎 Tips](BEGINNER_TIPS_en.md) | [🎁 Gift Codes](GIFT_CODES_en.md)
 
 ---
 
@@ -15,6 +15,9 @@ Strong teamwork, mutual respect, and a smart strategy are the keys to our succes
 * 🚫 **No raiding on our home server:** Never attack caravans or execute covert operations against players on our home server!
   * *Tip:* Always direct your covert operations and raids against our current opponents in the **Alliance Duel** (from another server).
 * 🏖️ **Report absences:** Real life always comes first! However, if you plan to be absent for an extended period (vacation, illness, exams, business trip, etc.), please inform an **R4 or R5** in advance to prevent an accidental kick for inactivity.
+* 🏰 **Raiding Allianceless Sanctuaries (Allowed!):** Sanctuaries and villages on our home server that **do not belong to any alliance** may be freely attacked and looted!
+  * 🔍 **Scout first:** Always scout the target before attacking to make sure it has enough resources to be worth the march.
+  * 🤝 **Start as an Alliance Rally:** Preferably initiate attacks on allianceless targets as an **Alliance Rally (Versammlung)** rather than a solo march! This allows your fellow guild members to join in, grab loot and resources, and save precious stamina.
 
 ---
 

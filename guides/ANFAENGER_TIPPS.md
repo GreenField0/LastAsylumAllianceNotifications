@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 **Deutsch** | 🇺🇸 [English](BEGINNER_TIPS_en.md)  
-> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md)
+> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md) | [🎁 Gift Codes](GIFT_CODES.md)
 
 ---
 
@@ -29,7 +29,7 @@ Diamanten sind die wertvollste Ressource im Spiel. Wer sie falsch ausgibt, fäll
 Eure Ausdauer füllt sich im Laufe der Zeit automatisch auf. Wenn der Balken voll ist (100/100 oder 200/200), stoppt die Regeneration – ihr verschenkt also kostenlose Energie!
 
 * **Niemals am Limit stehen lassen:** Verbraucht eure Ausdauer regelmäßig!
-* **Auto-Scavenge (Plündern):** Nutzt diese Funktion, wenn ihr wenig Zeit habt, um schnell Ausdauer in Ressourcen und Erfahrung umzuwandeln.
+* **Seuchenmonster & Radar-Quests schnell schnetzeln:** Nutzt die Such- und Radarfunktion auf der Weltkarte, um Ausdauer schnell vor dem Schlafen oder bei wenig Zeit in Ressourcen, Helden-EXP und Beute umzuwandeln.
 * **Rallyes gegen Elite-Seuchenmonster:** Nehmt so oft wie möglich an Allianz-Rallyes teil. Sie kosten wenig Ausdauer, bringen aber fantastische Belohnungen für die ganze Allianz!
 
 ---

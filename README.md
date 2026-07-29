@@ -1,7 +1,7 @@
 # LastAsylum
 
 *🇩🇪 [Hier geht es zur deutschen Version (German Version)](README_de.md)*  
-> 📌 **Alliance Guides:** [📅 Schedule](guides/SCHEDULE_en.md) | [📜 Rules & SvS](guides/ALLIANCE_RULES_en.md) | [🦸 Heroes](guides/HEROES_GUIDE_en.md) | [🦅 Ravens](guides/RAVENS_GUIDE_en.md) | [💎 Tips](guides/BEGINNER_TIPS_en.md)
+> 📌 **Alliance Guides:** [📅 Schedule](guides/SCHEDULE_en.md) | [📜 Rules & SvS](guides/ALLIANCE_RULES_en.md) | [🦸 Heroes](guides/HEROES_GUIDE_en.md) | [🦅 Ravens](guides/RAVENS_GUIDE_en.md) | [💎 Tips](guides/BEGINNER_TIPS_en.md) | [🎁 Gift Codes](guides/GIFT_CODES_en.md)
 
 Automated notifications for the LastAsylum guild — daily schedule briefings and custom R4/R5 announcements delivered to Discord and Telegram via GitHub Actions.
 

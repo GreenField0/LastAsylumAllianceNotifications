@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 **Deutsch** | 🇺🇸 [English](ALLIANCE_RULES_en.md)  
-> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md)
+> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md) | [🎁 Gift Codes](GIFT_CODES.md)
 
 ---
 
@@ -15,6 +15,9 @@ Ein starkes Miteinander, gegenseitiger Respekt und eine kluge Strategie sind der
 * 🚫 **Nicht auf dem eigenen Server plündern:** Karawanen und verdeckte Operationen dürfen **niemals** gegen Spieler unseres eigenen Servers gerichtet sein!
   * *Tipp:* Richtet eure verdeckten Operationen und Plünderungen bevorzugt immer gegen unsere aktuellen Gegner im **Allianz-Duell** (aus einem anderen Server).
 * 🏖️ **Abwesenheit melden:** Das Reallife geht immer vor! Solltet ihr jedoch für längere Zeit abwesend sein (Urlaub, Krankheit, Prüfungsphase, Berufsreise etc.), informiert bitte vorher kurz eine/n **R4 oder R5**, um einem unabsichtlichen Rausschmiss wegen Inaktivität vorzubeugen.
+* 🏰 **Allianzlose Dörfer plündern (Erlaubt!):** Stützpunkte und Dörfer auf unserem Server, die **keiner Allianz** angehören, dürfen angegriffen werden!
+  * 🔍 **Vorher ausspähen:** Späht das Ziel vor dem Angriff aus, um sicherzustellen, dass sich der Weg für die Ressourcen überhaupt lohnt.
+  * 🤝 **Als Versammlung (Rally) starten:** Startet Angriffe auf allianzlose Ziele am besten als **Versammlung (Rally)** und nicht im Alleingang! So können eure Mitstreiter daran teilnehmen, sich ebenfalls Beute sichern und dabei wertvolle Ausdauer sparen.
 
 ---
 

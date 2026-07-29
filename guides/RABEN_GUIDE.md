@@ -1,5 +1,5 @@
 > 🌐 **Language / Sprache:** 🇩🇪 **Deutsch** | 🇺🇸 [English](RAVENS_GUIDE_en.md)  
-> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md)
+> 📌 **Navigation:** [📅 Zeitplan](ALLIANZ-ZEITPLAN.md) | [📜 Regeln & SvS](ALLIANZ_REGELN.md) | [🦸 Helden](HELDEN_GUIDE.md) | [🦅 Raben](RABEN_GUIDE.md) | [💎 Tipps](ANFAENGER_TIPPS.md) | [🎁 Gift Codes](GIFT_CODES.md)
 
 ---
 
