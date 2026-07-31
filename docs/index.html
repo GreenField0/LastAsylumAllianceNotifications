@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last Asylum - Alliance Guides</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Background Elements -->
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="glass-panel sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1>Last Asylum</h1>
+                <p>Alliance Guides</p>
+                <div class="lang-switch">
+                    <button id="lang-de" class="lang-btn active">🇩🇪 DE</button>
+                    <button id="lang-en" class="lang-btn">🇺🇸 EN</button>
+                </div>
+            </div>
+            <ul class="nav-links" id="nav-list">
+                <!-- Navigation links populated by app.js -->
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="mobile-header glass-panel">
+                <h1>Last Asylum</h1>
+                <button id="mobile-menu-btn" class="menu-btn">☰</button>
+            </header>
+            
+            <div id="content" class="content-container glass-panel markdown-body">
+                <div class="loader">Loading...</div>
+            </div>
+            
+            <!-- Timezone Info Banner -->
+            <div class="timezone-banner glass-panel">
+                <p>⏱️ <span id="tz-info">Detecting timezone...</span></p>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
