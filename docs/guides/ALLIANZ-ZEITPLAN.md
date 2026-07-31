@@ -38,7 +38,7 @@ In dieser Tabelle seht ihr genau, wofür es an welchem Wochentag Punkte gibt und
 
 Der Überlebenskampf wechselt alle 4 Stunden sein Thema. Nutzt eure Beschleunigungen und Ressourcen idealerweise genau in dem Zeitfenster, in dem auch euer Allianz-Duell punkte bringt!
 
-| Wochentag | 04:00 - 08:00 | 08:00 - 12:00 | 12:00 - 16:00 | 16:00 - 20:00 | 20:00 - 00:00 | 00:00 - 04:00 |
+| Wochentag | 02:00 UTC - 06:00 UTC | 06:00 UTC - 10:00 UTC | 10:00 UTC - 14:00 UTC | 14:00 UTC - 18:00 UTC | 18:00 UTC - 22:00 UTC | 22:00 UTC - 02:00 UTC |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Montag** | 🦸 Helden | 🏗️ Gebietsbau | ⚔️ Training | 🔬 Forschung | 🦅 Raben | 🦸 Helden |
 | **Dienstag** | 🏗️ Gebietsbau | ⚔️ Training | 🔬 Forschung | 🦅 Raben | 🦸 Helden | 🏗️ Gebietsbau |

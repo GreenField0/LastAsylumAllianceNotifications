@@ -38,7 +38,7 @@ This table shows exactly what scores points on each day of the week and how best
 
 The Survival Arms Race changes its theme every 4 hours. Ideally, use your speedups and resources precisely during the matching 4-hour window that also scores points for your Alliance Duel!
 
-| Day of Week | 04:00 - 08:00 | 08:00 - 12:00 | 12:00 - 16:00 | 16:00 - 20:00 | 20:00 - 00:00 | 00:00 - 04:00 |
+| Day of Week | 02:00 UTC - 06:00 UTC | 06:00 UTC - 10:00 UTC | 10:00 UTC - 14:00 UTC | 14:00 UTC - 18:00 UTC | 18:00 UTC - 22:00 UTC | 22:00 UTC - 02:00 UTC |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Monday** | 🦸 Heroes | 🏗️ Building | ⚔️ Training | 🔬 Research | 🦅 Ravens | 🦸 Heroes |
 | **Tuesday** | 🏗️ Building | ⚔️ Training | 🔬 Research | 🦅 Ravens | 🦸 Heroes | 🏗️ Building |
