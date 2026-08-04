@@ -34,6 +34,7 @@ jobs:
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "chore: update daily briefing states [skip ci]"
+            git pull --rebase
             git push
           } else {
             Write-Output "No changes to commit."
