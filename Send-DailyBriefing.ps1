@@ -83,7 +83,9 @@ foreach ($Alliance in $Alliances) {
         continue
     }
 
-    if ($NowLocal.TimeOfDay -lt $TargetTimeSpan) {
+    $IsManualTrigger = ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch')
+
+    if (-not $IsManualTrigger -and $NowLocal.TimeOfDay -lt $TargetTimeSpan) {
         Write-Verbose "Alliance $($Alliance.id): Target time $($Config.send_time) not reached yet (Local time: $($NowLocal.ToString('HH:mm')))."
         continue
     }
@@ -97,7 +99,7 @@ foreach ($Alliance in $Alliances) {
     }
 
     $TodayString = $NowLocal.ToString('yyyy-MM-dd')
-    if ($State.last_send_date -eq $TodayString) {
+    if (-not $IsManualTrigger -and $State.last_send_date -eq $TodayString) {
         Write-Verbose "Alliance $($Alliance.id): Already sent today."
         continue
     }
