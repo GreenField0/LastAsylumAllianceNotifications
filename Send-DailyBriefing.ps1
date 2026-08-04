@@ -1,51 +1,16 @@
 <#
 .SYNOPSIS
     Sends the daily Alliance Duel and Survival schedule to a Discord channel.
-
-.DESCRIPTION
-    This script retrieves the current day of the week, loads the corresponding formatted
-    markdown structure and image from an external schedule.json file, constructs the 
-    payload, and dispatches it to Discord via Webhook.
-
-.PARAMETER WebhookUrl
-    The target Discord Webhook URL. Defaults to the environment variable DISCORD_WEBHOOK_URL_DAILY.
-
-.PARAMETER SchedulePath
-    The path to the JSON file containing the daily schedules. Defaults to '.\schedule.json'.
-
-.PARAMETER MessageIdStorePath
-    The path to a small file used to remember the ID of the last message sent via the
-    webhook, so it can be deleted before the new one is posted. Defaults to
-    '.\.last-message-id.txt'.
-
-.INPUTS
-    None.
-
-.OUTPUTS
-    None.
-
-.EXAMPLE
-    .\Send-DailyBriefing.ps1
+    Supports multiple alliances configured via a JSON structure.
 #>
 [CmdletBinding()]
 param (
-    # --- Channels ---
-    [bool]$EnableDiscord = $true,
-    [bool]$EnableTelegram = $true,
-    [bool]$EnableCallMeBot = $false,
-
-    # --- Credentials ---
-    [string]$WebhookUrl = $env:DISCORD_WEBHOOK_URL_DAILY,
     [string]$SchedulePath = ".\schedule.json",
-    [string]$MessageIdStorePath = ".\.last-message-id.txt",
-    [string]$TelegramBotToken = $env:TELEGRAM_BOT_TOKEN,
-    [string]$TelegramChatId = $env:TELEGRAM_CHAT_ID,
-    [string]$CallMeBotPhone = $env:CALLMEBOT_PHONE,
-    [string]$CallMeBotApiKey = $env:CALLMEBOT_APIKEY
+    [string]$ConfigJson = $env:ALLIANCES_CONFIG
 )
 
-if ($EnableDiscord -and [string]::IsNullOrWhiteSpace($WebhookUrl)) {
-    Write-Error "Webhook URL is not defined. Please set the DISCORD_WEBHOOK_URL_DAILY environment variable."
+if ([string]::IsNullOrWhiteSpace($ConfigJson)) {
+    Write-Error "ALLIANCES_CONFIG environment variable is not defined or empty."
     exit 1
 }
 
@@ -54,10 +19,7 @@ if (-not (Test-Path $SchedulePath)) {
     exit 1
 }
 
-# 1. Determine current day of the week
-$CurrentDay = (Get-Date).DayOfWeek.ToString()
-
-# 2. Load and parse the schedule data from JSON
+# 1. Load and parse the schedule data from JSON
 try {
     $ScheduleData = Get-Content -Raw -Path $SchedulePath | ConvertFrom-Json
 }
@@ -66,132 +28,183 @@ catch {
     exit 1
 }
 
-# 3. Extract the specific data for today
-$TodayData = $ScheduleData.$CurrentDay
-
-if ($null -eq $TodayData) {
-    Write-Error "No schedule data found for $CurrentDay in the JSON file."
+# 2. Parse Alliances config
+try {
+    $Alliances = $ConfigJson | ConvertFrom-Json
+}
+catch {
+    Write-Error "Failed to parse ALLIANCES_CONFIG JSON. Exception: $_"
     exit 1
 }
 
-# 4. Construct JSON Payload with Embed Structure for Image
-$Payload = [ordered]@{
-    content = $TodayData.content
-    # embeds  = @(
-    #     @{
-    #         image = @{
-    #             url = $TodayData.image
-    #         }
-    #     }
-    # )
-}
+foreach ($Alliance in $Alliances) {
+    if (-not $Alliance.daily_briefing -or $Alliance.daily_briefing.enabled -eq $false) {
+        Write-Verbose "Daily briefing disabled for alliance $($Alliance.id) - skipping."
+        continue
+    }
 
-# 5. Delete the previous day's message (if any) so only the current one remains
-if ($EnableDiscord -and (Test-Path $MessageIdStorePath)) {
-    $PreviousMessageId = (Get-Content -Raw -Path $MessageIdStorePath).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($PreviousMessageId)) {
+    $Config = $Alliance.daily_briefing
+    $StateFilePath = ".\.daily-state-$($Alliance.id).json"
+
+    # 3. Determine timezone and local time
+    try {
+        $TimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($Alliance.timezone)
+        $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZone)
+    } catch {
+        Write-Warning "Alliance $($Alliance.id): Unknown timezone '$($Alliance.timezone)' - skipping."
+        continue
+    }
+
+    $CurrentDay = $NowLocal.DayOfWeek.ToString()
+    $TodayData = $ScheduleData.$CurrentDay
+
+    if ($null -eq $TodayData) {
+        Write-Warning "Alliance $($Alliance.id): No schedule data found for $CurrentDay."
+        continue
+    }
+
+    # 4. Check if we reached the target time
+    $TargetTimeSpan = [timespan]::Zero
+    if (-not [timespan]::TryParse($Config.send_time, [ref]$TargetTimeSpan)) {
+        Write-Warning "Alliance $($Alliance.id): Invalid send_time format '$($Config.send_time)' - should be e.g. '05:00'."
+        continue
+    }
+
+    if ($NowLocal.TimeOfDay -lt $TargetTimeSpan) {
+        Write-Verbose "Alliance $($Alliance.id): Target time $($Config.send_time) not reached yet (Local time: $($NowLocal.ToString('HH:mm')))."
+        continue
+    }
+
+    # 5. Check if we already sent it today
+    $State = @{ last_send_date = ""; last_message_id = "" }
+    if (Test-Path $StateFilePath) {
         try {
-            Invoke-RestMethod -Uri "${WebhookUrl}/messages/$PreviousMessageId" -Method Delete
-            Write-Output "Deleted previous message ($PreviousMessageId)."
+            # Need to cast explicitly to hashtable/PSCustomObject for easier access
+            $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
+            if ($FileContent.last_send_date) { $State.last_send_date = $FileContent.last_send_date }
+            if ($FileContent.last_message_id) { $State.last_message_id = $FileContent.last_message_id }
+        } catch { }
+    }
+
+    $TodayString = $NowLocal.ToString('yyyy-MM-dd')
+    if ($State.last_send_date -eq $TodayString) {
+        Write-Verbose "Alliance $($Alliance.id): Already sent today."
+        continue
+    }
+
+    # 6. Prepare Message Content based on requested languages
+    $MessageParts = @()
+    if (-not [string]::IsNullOrWhiteSpace($Config.role_id_ping)) {
+        $MessageParts += "<@&$($Config.role_id_ping)>"
+    }
+
+    $Languages = $Config.languages
+    if (-not $Languages) { $Languages = @("de") } # Default fallback
+
+    foreach ($Lang in $Languages) {
+        $Text = $TodayData.content.$Lang
+        if ($Text) {
+            $MessageParts += $Text
+        } else {
+            Write-Warning "Alliance $($Alliance.id): Language '$Lang' not found in schedule.json for $CurrentDay."
+        }
+    }
+
+    if ($MessageParts.Count -eq 0 -or ($MessageParts.Count -eq 1 -and $Config.role_id_ping)) {
+        Write-Warning "Alliance $($Alliance.id): Resulting message is empty, skipping."
+        continue
+    }
+
+    # Combine all parts with a separator
+    $FinalMessage = $MessageParts -join "`n`n---\n\n"
+
+    $Payload = [ordered]@{
+        content = $FinalMessage
+    }
+
+    $NewMessageId = ""
+
+    # 7. Delete previous day's message on Discord
+    if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook) -and -not [string]::IsNullOrWhiteSpace($State.last_message_id)) {
+        try {
+            Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$($State.last_message_id)" -Method Delete
+            Write-Output "Alliance $($Alliance.id): Deleted previous message ($($State.last_message_id))."
         }
         catch {
-            # Message may already have been deleted manually, or the ID/token is stale - not fatal.
-            Write-Warning "Could not delete previous message ($PreviousMessageId): $_"
+            Write-Warning "Alliance $($Alliance.id): Could not delete previous message ($($State.last_message_id)): $_"
         }
     }
-}
 
-# 6. Execute HTTP POST Request to Discord
-if ($EnableDiscord) {
-    # Depth 4 is required to correctly serialize the nested embed array/hashtable
-    # '?wait=true' makes Discord return the created message (incl. its ID) instead of an empty response
-    $JsonPayload = $Payload | ConvertTo-Json -Depth 4
+    # 8. Send to Discord
+    $DiscordSuccess = $false
+    if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
+        $JsonPayload = $Payload | ConvertTo-Json -Depth 4
+        try {
+            $Response = Invoke-RestMethod -Uri "$($Config.discord_webhook)?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
+            Write-Output "Successfully sent daily briefing for $CurrentDay to Discord for $($Alliance.id)."
+            if ($Response.id) { $NewMessageId = $Response.id }
+            $DiscordSuccess = $true
+        }
+        catch {
+            Write-Error "Failed to send Discord webhook for $($Alliance.id). Exception: $_"
+        }
+    } else {
+        $DiscordSuccess = $true # If no discord configured, consider it a success so Telegram can still run and state saves
+    }
 
-    try {
-        $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
-        Write-Output "Successfully sent daily briefing for $CurrentDay to Discord."
+    # If Discord failed completely, we skip saving state so it retries on the next cron run
+    if (-not $DiscordSuccess) {
+        continue
+    }
 
-        # 7. Remember the new message ID for the next run
-        if ($Response.id) {
-            Set-Content -Path $MessageIdStorePath -Value $Response.id -NoNewline
+    # 9. Send to Telegram
+    if (-not [string]::IsNullOrWhiteSpace($Config.telegram_bot_token) -and -not [string]::IsNullOrWhiteSpace($Config.telegram_chat_id)) {
+        $TextHtml = $FinalMessage -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
+        $TextHtml = $TextHtml.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+        $TextHtml = $TextHtml -replace '(?m)^[\*\-]\s+', '• '
+        $TextHtml = $TextHtml -replace '(?m)^#+\s*(.+)$', '<b>$1</b>'
+        $TextHtml = $TextHtml -replace '(?m)^[-*_]{3,}\s*$', '──────────'
+        $TextHtml = $TextHtml -replace '\*\*(.+?)\*\*', '<b>$1</b>'
+        $TextHtml = $TextHtml -replace '~~(.+?)~~', '<s>$1</s>'
+        $TextHtml = $TextHtml -replace '(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', '<i>$1</i>'
+        $TextHtml = $TextHtml -replace '_(.+?)_', '<i>$1</i>'
+        $TextHtml = ($TextHtml -replace '(\r?\n){3,}', "`n`n").Trim()
+
+        $TelegramPayload = @{
+            chat_id                  = $Config.telegram_chat_id
+            text                     = $TextHtml
+            parse_mode               = 'HTML'
+            disable_web_page_preview = $true
+        } | ConvertTo-Json -Depth 3
+
+        try {
+            Invoke-RestMethod -Uri "https://api.telegram.org/bot$($Config.telegram_bot_token)/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
+            Write-Output "Successfully sent daily briefing for $CurrentDay to Telegram for $($Alliance.id)."
+        }
+        catch {
+            Write-Warning "Failed to send Telegram notification for $($Alliance.id). Exception: $_"
         }
     }
-    catch {
-        Write-Error "Failed to send webhook. Exception: $_"
-        exit 1
+
+    # 10. Send WhatsApp notification via CallMeBot
+    if (-not [string]::IsNullOrWhiteSpace($Config.callmebot_phone) -and -not [string]::IsNullOrWhiteSpace($Config.callmebot_apikey)) {
+        $WhatsAppText = $FinalMessage -replace '\*\*(.+?)\*\*', '*$1*'
+        $WhatsAppText = $WhatsAppText -replace '~~(.+?)~~', '~$1~'
+        $EncodedText = [System.Uri]::EscapeDataString($WhatsAppText)
+        $CallMeBotUri = "https://api.callmebot.com/whatsapp.php?phone=$($Config.callmebot_phone)&text=${EncodedText}&apikey=$($Config.callmebot_apikey)"
+        try {
+            Invoke-RestMethod -Uri $CallMeBotUri -Method Get | Out-Null
+            Write-Output "Successfully sent daily briefing for $CurrentDay to WhatsApp via CallMeBot for $($Alliance.id)."
+        }
+        catch {
+            Write-Warning "Failed to send WhatsApp notification via CallMeBot for $($Alliance.id). Exception: $_"
+        }
     }
-}
-else {
-    Write-Verbose "Discord disabled – skipping."
-}
 
-# 8. Send Telegram notification (if enabled and credentials are provided)
-if ($EnableTelegram -and -not [string]::IsNullOrWhiteSpace($TelegramBotToken) -and -not [string]::IsNullOrWhiteSpace($TelegramChatId)) {
-    # Convert Discord Markdown to clean, informative Telegram HTML
-    $Text = $TodayData.content
-
-    # Strip Discord-specific mentions and pings
-    $Text = $Text -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
-
-    # HTML-escape special characters so literal < > & won't break Telegram HTML parsing
-    $Text = $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
-
-    # Convert common Discord markdown formatting to Telegram HTML
-    # 1. Bullet points (* item or - item -> • item) BEFORE formatting tags
-    $Text = $Text -replace '(?m)^[\*\-]\s+', '• '
-    # 2. Headers (## Title -> <b>Title</b>)
-    $Text = $Text -replace '(?m)^#+\s*(.+)$', '<b>$1</b>'
-    # 3. Horizontal rules (--- -> clean separator line)
-    $Text = $Text -replace '(?m)^[-*_]{3,}\s*$', '──────────'
-    # 4. Bold (**text** -> <b>text</b>)
-    $Text = $Text -replace '\*\*(.+?)\*\*', '<b>$1</b>'
-    # 5. Strikethrough (~~text~~ -> <s>text</s>)
-    $Text = $Text -replace '~~(.+?)~~', '<s>$1</s>'
-    # 6. Italic (*text* or _text_ -> <i>text</i>)
-    $Text = $Text -replace '(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', '<i>$1</i>'
-    $Text = $Text -replace '_(.+?)_', '<i>$1</i>'
-
-    $TelegramText = ($Text -replace '(\r?\n){3,}', "`n`n").Trim()
-
-    $TelegramPayload = @{
-        chat_id                  = $TelegramChatId
-        text                     = $TelegramText
-        parse_mode               = 'HTML'
-        disable_web_page_preview = $true
-    } | ConvertTo-Json -Depth 3
-
-    try {
-        Invoke-RestMethod -Uri "https://api.telegram.org/bot${TelegramBotToken}/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
-        Write-Output "Successfully sent daily briefing for $CurrentDay to Telegram."
+    # 11. Save State for next day
+    $NewState = @{
+        last_send_date = $TodayString
+        last_message_id = $NewMessageId
     }
-    catch {
-        # Telegram failure is non-fatal; Discord was already sent successfully.
-        Write-Warning "Failed to send Telegram notification. Exception: $_"
-    }
-}
-else {
-    Write-Verbose "Telegram disabled or credentials not set – skipping Telegram notification."
-}
-
-# 9. Send WhatsApp notification via CallMeBot (if enabled and credentials are provided)
-if ($EnableCallMeBot -and -not [string]::IsNullOrWhiteSpace($CallMeBotPhone) -and -not [string]::IsNullOrWhiteSpace($CallMeBotApiKey)) {
-    # Convert the most common Discord markdown tokens to WhatsApp equivalents (best-effort)
-    $WhatsAppText = $TodayData.content
-    $WhatsAppText = $WhatsAppText -replace '\*\*(.+?)\*\*', '*$1*'  # **bold** -> *bold*
-    $WhatsAppText = $WhatsAppText -replace '~~(.+?)~~', '~$1~'  # ~~strike~~ -> ~strike~
-
-    $EncodedText = [System.Uri]::EscapeDataString($WhatsAppText)
-    $CallMeBotUri = "https://api.callmebot.com/whatsapp.php?phone=${CallMeBotPhone}&text=${EncodedText}&apikey=${CallMeBotApiKey}"
-
-    try {
-        Invoke-RestMethod -Uri $CallMeBotUri -Method Get | Out-Null
-        Write-Output "Successfully sent daily briefing for $CurrentDay to WhatsApp via CallMeBot."
-    }
-    catch {
-        # CallMeBot failure is non-fatal.
-        Write-Warning "Failed to send WhatsApp notification via CallMeBot. Exception: $_"
-    }
-}
-else {
-    Write-Verbose "CallMeBot disabled or credentials not set – skipping WhatsApp notification."
+    $NewState | ConvertTo-Json | Set-Content -Path $StateFilePath -NoNewline
 }

@@ -2,8 +2,8 @@ name: Daily Alliance Briefing
 
 on:
   schedule:
-    # Runs at 02:00 UTC every day (04:00 CEST)
-    - cron: '0 2 * * *'
+    # Runs every 15 minutes to check all alliance timezones and target times
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     # Allows manual triggering for testing purposes
 
@@ -21,23 +21,19 @@ jobs:
       - name: Execute PowerShell Script
         shell: pwsh
         env:
-          DISCORD_WEBHOOK_URL_DAILY: ${{ secrets.DISCORD_WEBHOOK_URL_DAILY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
-          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          ALLIANCES_CONFIG: ${{ secrets.ALLIANCES_CONFIG }}
         run: |
           ./Send-DailyBriefing.ps1
 
-      - name: Persist Last Message ID
+      - name: Persist Last Message ID and Date
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .last-message-id.txt
+          git add .daily-state-*.json
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
-            git commit -m "chore: update last Discord message ID [skip ci]"
+            git commit -m "chore: update daily briefing states [skip ci]"
             git push
           } else {
             Write-Output "No changes to commit."
