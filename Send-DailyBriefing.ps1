@@ -37,6 +37,20 @@ catch {
     exit 1
 }
 
+# 3. Load Global State
+$StateFilePath = ".\.daily-state.json"
+$GlobalState = @{}
+if (Test-Path $StateFilePath) {
+    try {
+        $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
+        foreach ($Property in $FileContent.PSObject.Properties) {
+            $GlobalState[$Property.Name] = $Property.Value
+        }
+    } catch {
+        Write-Warning "Could not parse $StateFilePath. Starting with fresh state."
+    }
+}
+
 foreach ($Alliance in $Alliances) {
     if (-not $Alliance.daily_briefing -or $Alliance.daily_briefing.enabled -eq $false) {
         Write-Verbose "Daily briefing disabled for alliance $($Alliance.id) - skipping."
@@ -44,9 +58,8 @@ foreach ($Alliance in $Alliances) {
     }
 
     $Config = $Alliance.daily_briefing
-    $StateFilePath = ".\.daily-state-$($Alliance.id).json"
 
-    # 3. Determine timezone and local time
+    # 4. Determine timezone and local time
     try {
         $TimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($Alliance.timezone)
         $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZone)
@@ -63,7 +76,7 @@ foreach ($Alliance in $Alliances) {
         continue
     }
 
-    # 4. Check if we reached the target time
+    # 5. Check if we reached the target time
     $TargetTimeSpan = [timespan]::Zero
     if (-not [timespan]::TryParse($Config.send_time, [ref]$TargetTimeSpan)) {
         Write-Warning "Alliance $($Alliance.id): Invalid send_time format '$($Config.send_time)' - should be e.g. '05:00'."
@@ -75,15 +88,12 @@ foreach ($Alliance in $Alliances) {
         continue
     }
 
-    # 5. Check if we already sent it today
+    # 6. Check if we already sent it today
     $State = @{ last_send_date = ""; last_message_id = "" }
-    if (Test-Path $StateFilePath) {
-        try {
-            # Need to cast explicitly to hashtable/PSCustomObject for easier access
-            $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
-            if ($FileContent.last_send_date) { $State.last_send_date = $FileContent.last_send_date }
-            if ($FileContent.last_message_id) { $State.last_message_id = $FileContent.last_message_id }
-        } catch { }
+    if ($GlobalState.Contains($Alliance.id)) {
+        $ExistingState = $GlobalState[$Alliance.id]
+        if ($ExistingState.last_send_date) { $State.last_send_date = $ExistingState.last_send_date }
+        if ($ExistingState.last_message_id) { $State.last_message_id = $ExistingState.last_message_id }
     }
 
     $TodayString = $NowLocal.ToString('yyyy-MM-dd')
@@ -92,7 +102,7 @@ foreach ($Alliance in $Alliances) {
         continue
     }
 
-    # 6. Prepare Message Content based on requested languages
+    # 7. Prepare Message Content based on requested languages
     $LanguageParts = @()
     $Languages = $Config.languages
     if (-not $Languages) { $Languages = @("de") } # Default fallback
@@ -125,7 +135,7 @@ foreach ($Alliance in $Alliances) {
 
     $NewMessageId = ""
 
-    # 7. Delete previous day's message on Discord
+    # 8. Delete previous day's message on Discord
     if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook) -and -not [string]::IsNullOrWhiteSpace($State.last_message_id)) {
         try {
             Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$($State.last_message_id)" -Method Delete
@@ -136,7 +146,7 @@ foreach ($Alliance in $Alliances) {
         }
     }
 
-    # 8. Send to Discord
+    # 9. Send to Discord
     $DiscordSuccess = $false
     if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
         $JsonPayload = $Payload | ConvertTo-Json -Depth 4
@@ -158,7 +168,7 @@ foreach ($Alliance in $Alliances) {
         continue
     }
 
-    # 9. Send to Telegram
+    # 10. Send to Telegram
     if (-not [string]::IsNullOrWhiteSpace($Config.telegram_bot_token) -and -not [string]::IsNullOrWhiteSpace($Config.telegram_chat_id)) {
         $TextHtml = $FinalMessage -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
         $TextHtml = $TextHtml.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
@@ -187,7 +197,7 @@ foreach ($Alliance in $Alliances) {
         }
     }
 
-    # 10. Send WhatsApp notification via CallMeBot
+    # 11. Send WhatsApp notification via CallMeBot
     if (-not [string]::IsNullOrWhiteSpace($Config.callmebot_phone) -and -not [string]::IsNullOrWhiteSpace($Config.callmebot_apikey)) {
         $WhatsAppText = $FinalMessage -replace '\*\*(.+?)\*\*', '*$1*'
         $WhatsAppText = $WhatsAppText -replace '~~(.+?)~~', '~$1~'
@@ -202,10 +212,12 @@ foreach ($Alliance in $Alliances) {
         }
     }
 
-    # 11. Save State for next day
-    $NewState = @{
+    # 12. Update Global State
+    $GlobalState[$Alliance.id] = @{
         last_send_date = $TodayString
         last_message_id = $NewMessageId
     }
-    $NewState | ConvertTo-Json | Set-Content -Path $StateFilePath -NoNewline
 }
+
+# 13. Save Global State
+$GlobalState | ConvertTo-Json -Depth 3 | Set-Content -Path $StateFilePath -NoNewline

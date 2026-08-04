@@ -1,11 +1,10 @@
 <#
 .SYNOPSIS
-    Polls a Google Sheet (fed by a Google Form) for custom R4/R5 notifications and
-    posts due ones to a dedicated Discord channel via webhook. Supports multiple alliances.
+    Sends scheduled custom announcements from a Google Sheet to Discord and Telegram.
+    Supports multiple alliances configured via a JSON structure.
 #>
 [CmdletBinding()]
 param (
-    [string]$SheetName = 'Formularantworten 1',
     [string]$ConfigJson = $env:ALLIANCES_CONFIG
 )
 
@@ -14,200 +13,75 @@ if ([string]::IsNullOrWhiteSpace($ConfigJson)) {
     exit 1
 }
 
-# --- Helper functions --------------------------------------------------------
-
-function ConvertTo-Base64Url {
-    param([byte[]]$Bytes)
-    [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-}
-
-function New-GoogleServiceAccountToken {
-    param (
-        [Parameter(Mandatory)] [string]$ClientEmail,
-        [Parameter(Mandatory)] [string]$PrivateKeyPem,
-        [Parameter(Mandatory)] [string]$Scope
-    )
-
-    $Now = [DateTimeOffset]::UtcNow
-    $HeaderJson = @{ alg = 'RS256'; typ = 'JWT' } | ConvertTo-Json -Compress
-    $ClaimsJson = @{
-        iss   = $ClientEmail
-        scope = $Scope
-        aud   = 'https://oauth2.googleapis.com/token'
-        iat   = $Now.ToUnixTimeSeconds()
-        exp   = $Now.AddHours(1).ToUnixTimeSeconds()
-    } | ConvertTo-Json -Compress
-
-    $HeaderB64 = ConvertTo-Base64Url ([System.Text.Encoding]::UTF8.GetBytes($HeaderJson))
-    $ClaimsB64 = ConvertTo-Base64Url ([System.Text.Encoding]::UTF8.GetBytes($ClaimsJson))
-    $SigningInput = "$HeaderB64.$ClaimsB64"
-
-    $Rsa = [System.Security.Cryptography.RSA]::Create()
-    try {
-        $Rsa.ImportFromPem($PrivateKeyPem)
-        $Signature = $Rsa.SignData(
-            [System.Text.Encoding]::UTF8.GetBytes($SigningInput),
-            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
-            [System.Security.Cryptography.RSASignaturePadding]::Pkcs1
-        )
-    }
-    finally {
-        $Rsa.Dispose()
-    }
-
-    $Jwt = "$SigningInput.$(ConvertTo-Base64Url $Signature)"
-
-    $TokenResponse = Invoke-RestMethod -Uri 'https://oauth2.googleapis.com/token' -Method Post -Body @{
-        grant_type = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
-        assertion  = $Jwt
-    }
-
-    return $TokenResponse.access_token
-}
-
-function ConvertTo-ColumnLetter {
-    param([int]$Index)
-    $Letter = ''
-    $N = $Index
-    while ($N -gt 0) {
-        $Rem = ($N - 1) % 26
-        $Letter = [char](65 + $Rem) + $Letter
-        $N = [Math]::Floor(($N - 1) / 26)
-    }
-    return $Letter
-}
-
-function Get-Cell {
-    param($RowValues, [Nullable[int]]$ColIndex)
-    if (-not $ColIndex -or $ColIndex -gt $RowValues.Count) { return $null }
-    $Value = $RowValues[$ColIndex - 1]
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    return $Value
-}
-
-function ConvertTo-LocalDateTime {
-    param([string]$Value)
-    if (-not $Value) { return $null }
-    $Cultures = @(
-        [System.Globalization.CultureInfo]::GetCultureInfo('de-DE')
-        [System.Globalization.CultureInfo]::InvariantCulture
-        [System.Globalization.CultureInfo]::GetCultureInfo('en-US')
-    )
-    foreach ($Culture in $Cultures) {
-        $Parsed = [datetime]::MinValue
-        if ([datetime]::TryParse($Value, $Culture, [System.Globalization.DateTimeStyles]::None, [ref]$Parsed)) {
-            return $Parsed
-        }
-    }
-    Write-Warning "Konnte Datum/Zeit nicht parsen: '$Value'"
-    return $null
-}
-
-function ConvertTo-TimeSpanValue {
-    param([string]$Value)
-    if (-not $Value) { return $null }
-    $Parsed = [timespan]::Zero
-    if ([timespan]::TryParse($Value, [ref]$Parsed)) { return $Parsed }
-    $DateTimeValue = ConvertTo-LocalDateTime $Value
-    if ($DateTimeValue) { return $DateTimeValue.TimeOfDay }
-    Write-Warning "Konnte Uhrzeit nicht parsen: '$Value'"
-    return $null
-}
-
-function Send-DiscordNotification {
-    param(
-        [string]$WebhookUrl,
-        [string]$Message,
-        [string]$Title,
-        [string]$ImageUrl,
-        [string]$MentionPrefix,
-        [hashtable]$AllowedMentions
-    )
-    if ([string]::IsNullOrWhiteSpace($WebhookUrl)) {
-        return [pscustomobject]@{ Success = $true; MessageId = $null }
-    }
-    try {
-        $Payload = @{}
-        if ($AllowedMentions) { $Payload.allowed_mentions = $AllowedMentions }
-
-        if ($Title -or $ImageUrl) {
-            $Embed = @{ description = $Message; color = 0x5865F2 }
-            if ($Title) { $Embed.title = $Title }
-            if ($ImageUrl) { $Embed.image = @{ url = $ImageUrl } }
-            $Payload.embeds = @($Embed)
-            if ($MentionPrefix) { $Payload.content = $MentionPrefix }
-        }
-        else {
-            $Payload.content = if ($MentionPrefix) { "$MentionPrefix $Message" } else { $Message }
-        }
-
-        $Json = $Payload | ConvertTo-Json -Depth 4 -Compress
-        $Response = Invoke-RestMethod -Uri "${WebhookUrl}?wait=true" -Method Post -Body $Json -ContentType 'application/json'
-        return [pscustomobject]@{ Success = $true; MessageId = $Response.id }
-    }
-    catch {
-        Write-Warning "Discord-Versand fehlgeschlagen: $_"
-        return [pscustomobject]@{ Success = $false; MessageId = $null }
-    }
-}
-
-function Send-TelegramNotification {
-    param(
-        [string]$BotToken,
-        [string]$ChatId,
-        [string]$Message,
-        [string]$Title
-    )
-    if ([string]::IsNullOrWhiteSpace($BotToken) -or [string]::IsNullOrWhiteSpace($ChatId)) { return }
-
-    $Text = $Message -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
-    $Text = $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
-    $Text = $Text -replace '(?m)^[\*\-]\s+', '• '
-    $Text = $Text -replace '(?m)^#+\s*(.+)$', '<b>$1</b>'
-    $Text = $Text -replace '(?m)^[-*_]{3,}\s*$', '──────────'
-    $Text = $Text -replace '\*\*(.+?)\*\*', '<b>$1</b>'
-    $Text = $Text -replace '~~(.+?)~~', '<s>$1</s>'
-    $Text = $Text -replace '(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', '<i>$1</i>'
-    $Text = $Text -replace '_(.+?)_', '<i>$1</i>'
-
-    if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $CleanTitle = $Title.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
-        $Text = "<b>$CleanTitle</b>`n`n$Text"
-    }
-
-    $Text = ($Text -replace '(\r?\n){3,}', "`n`n").Trim()
-
-    $TelegramPayload = @{
-        chat_id                  = $ChatId
-        text                     = $Text
-        parse_mode               = 'HTML'
-        disable_web_page_preview = $true
-    } | ConvertTo-Json -Depth 3
-
-    try {
-        Invoke-RestMethod -Uri "https://api.telegram.org/bot${BotToken}/sendMessage" -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
-    }
-    catch {
-        Write-Warning "Telegram-Versand fehlgeschlagen: $_"
-    }
-}
-
-$WeekdayMap = @{
-    'Sonntag'    = [DayOfWeek]::Sunday
-    'Montag'     = [DayOfWeek]::Monday
-    'Dienstag'   = [DayOfWeek]::Tuesday
-    'Mittwoch'   = [DayOfWeek]::Wednesday
-    'Donnerstag' = [DayOfWeek]::Thursday
-    'Freitag'    = [DayOfWeek]::Friday
-    'Samstag'    = [DayOfWeek]::Saturday
-}
-
-# --- Parse Alliances Configuration ---
+# 1. Parse Alliances config
 try {
     $Alliances = $ConfigJson | ConvertFrom-Json
-} catch {
+}
+catch {
     Write-Error "Failed to parse ALLIANCES_CONFIG JSON. Exception: $_"
     exit 1
+}
+
+# Helper function to generate Google OAuth token from JSON object
+function New-GoogleServiceAccountToken {
+    param (
+        [Parameter(Mandatory=$true)]
+        [object]$ServiceAccountJson
+    )
+
+    $Scopes = "https://www.googleapis.com/auth/spreadsheets"
+
+    try {
+        $Header = @{
+            alg = "RS256"
+            typ = "JWT"
+        }
+        $HeaderBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(($Header | ConvertTo-Json -Compress))) -replace '\+','-' -replace '/','_' -replace '='
+
+        $Now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $Claim = @{
+            iss   = $ServiceAccountJson.client_email
+            scope = $Scopes
+            aud   = "https://oauth2.googleapis.com/token"
+            exp   = $Now + 3600
+            iat   = $Now
+        }
+        $ClaimBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes(($Claim | ConvertTo-Json -Compress))) -replace '\+','-' -replace '/','_' -replace '='
+
+        $SignatureInput = "$HeaderBase64.$ClaimBase64"
+        
+        $RSA = [System.Security.Cryptography.RSA]::Create()
+        $RSA.ImportFromPem($ServiceAccountJson.private_key)
+        $SignatureBytes = $RSA.SignData([System.Text.Encoding]::UTF8.GetBytes($SignatureInput), [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+        $SignatureBase64 = [Convert]::ToBase64String($SignatureBytes) -replace '\+','-' -replace '/','_' -replace '='
+
+        $Jwt = "$SignatureInput.$SignatureBase64"
+
+        $Body = @{
+            grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+            assertion  = $Jwt
+        }
+
+        $Response = Invoke-RestMethod -Uri "https://oauth2.googleapis.com/token" -Method Post -Body $Body -Form
+        return $Response.access_token
+    } catch {
+        Write-Error "Failed to generate Google token: $_"
+        return $null
+    }
+}
+
+# 2. Load Global State for known IDs
+$StateFilePath = ".\.custom-notifications-state.json"
+$GlobalState = @{}
+if (Test-Path $StateFilePath) {
+    try {
+        $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
+        foreach ($Property in $FileContent.PSObject.Properties) {
+            $GlobalState[$Property.Name] = @($Property.Value)
+        }
+    } catch {
+        Write-Warning "Could not parse $StateFilePath. Starting with fresh state."
+    }
 }
 
 foreach ($Alliance in $Alliances) {
@@ -217,264 +91,370 @@ foreach ($Alliance in $Alliances) {
     }
 
     $Config = $Alliance.custom_notifications
-    $AllianceId = $Alliance.id
-    $StateFilePath = ".\.custom-notifications-known-ids-$AllianceId.txt"
-    $TimeZoneId = if (-not [string]::IsNullOrWhiteSpace($Alliance.timezone)) { $Alliance.timezone } else { 'Europe/Berlin' }
 
-    if ([string]::IsNullOrWhiteSpace($Config.google_sheet_id) -or [string]::IsNullOrWhiteSpace($Config.google_service_account_key)) {
-        Write-Warning "Alliance $AllianceId: Missing google_sheet_id or google_service_account_key. Skipping."
+    if ([string]::IsNullOrWhiteSpace($Config.google_sheet_id)) {
+        Write-Warning "Alliance $($Alliance.id): Google Sheet ID is missing."
         continue
     }
 
-    Write-Output "--- Processing Custom Notifications for Alliance: $AllianceId ---"
-
-    # --- Determine "now" in the configured time zone ---
-    try {
-        $TimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($TimeZoneId)
-    } catch {
-        Write-Warning "Unbekannte Zeitzone '$TimeZoneId'. Nutze UTC."
-        $TimeZone = [System.TimeZoneInfo]::Utc
+    # Generate token using the nested JSON object
+    $GoogleToken = New-GoogleServiceAccountToken -ServiceAccountJson $Config.google_service_account_key
+    if (-not $GoogleToken) {
+        Write-Error "Alliance $($Alliance.id): Could not generate Google Service Account token. Skipping."
+        continue
     }
-    $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZone)
 
-    # --- Authenticate against the Google Sheets API ---
+    # Get local time based on alliance timezone
     try {
-        $ServiceAccount = $Config.google_service_account_key
-        if ($ServiceAccount -is [string]) {
-            $ServiceAccount = $ServiceAccount | ConvertFrom-Json
+        $TimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($Alliance.timezone)
+        $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZone)
+    } catch {
+        Write-Warning "Alliance $($Alliance.id): Unknown timezone '$($Alliance.timezone)' - skipping."
+        continue
+    }
+
+    # Fetch rows
+    $SheetApiUrl = "https://sheets.googleapis.com/v4/spreadsheets/$($Config.google_sheet_id)/values/A:M"
+    try {
+        $Response = Invoke-RestMethod -Uri $SheetApiUrl -Headers @{ Authorization = "Bearer $GoogleToken" } -ErrorAction Stop
+        $Rows = $Response.values
+    } catch {
+        Write-Error "Alliance $($Alliance.id): Failed to fetch Google Sheet. Exception: $_"
+        continue
+    }
+
+    if ($null -eq $Rows -or $Rows.Count -le 1) {
+        Write-Verbose "Alliance $($Alliance.id): No entries found in Google Sheet."
+        continue
+    }
+
+    $Headers = $Rows[0]
+    
+    $ColIndices = @{
+        Message = $Headers.IndexOf("Nachricht")
+        Title = $Headers.IndexOf("Titel (optional)")
+        Image = $Headers.IndexOf("Bild-URL (optional)")
+        Mentions = $Headers.IndexOf("Wen benachrichtigen? (optional)")
+        TimeOption = $Headers.IndexOf("Zeit-Option")
+        Minutes = $Headers.IndexOf("Minuten")
+        Date = $Headers.IndexOf("Datum")
+        TimeDate = $Headers.IndexOf("Uhrzeit (Datum)")
+        Weekday = $Headers.IndexOf("Wochentag")
+        TimeRecurring = $Headers.IndexOf("Uhrzeit (Wiederkehrend)")
+        EndDate = $Headers.IndexOf("End-Datum (optional)")
+        Status = $Headers.IndexOf("Status")
+        LastSent = $Headers.IndexOf("LetzterVersand")
+        DiscordMessageId = $Headers.IndexOf("Discord-Message-ID")
+    }
+
+    # Validate essential columns
+    if ($ColIndices.Message -eq -1 -or $ColIndices.TimeOption -eq -1) {
+        Write-Error "Alliance $($Alliance.id): Sheet is missing mandatory columns ('Nachricht' or 'Zeit-Option')."
+        continue
+    }
+
+    # Determine required extra columns
+    $MissingExtraColumns = @()
+    if ($ColIndices.Status -eq -1) { $MissingExtraColumns += "Status" }
+    if ($ColIndices.LastSent -eq -1) { $MissingExtraColumns += "LetzterVersand" }
+    if ($ColIndices.DiscordMessageId -eq -1) { $MissingExtraColumns += "Discord-Message-ID" }
+    if ($MissingExtraColumns.Count -gt 0) {
+        Write-Warning "Alliance $($Alliance.id): The following optional columns were not found in the sheet: $($MissingExtraColumns -join ', '). Ensure you added them at the end."
+    }
+
+    $KnownIdsForAlliance = @()
+    if ($GlobalState.Contains($Alliance.id)) {
+        $KnownIdsForAlliance = $GlobalState[$Alliance.id]
+    }
+
+    $ActiveMessageIdsThisRun = @()
+    $RowsUpdated = $false
+
+    for ($i = 1; $i -lt $Rows.Count; $i++) {
+        $Row = $Rows[$i]
+
+        $GetValue = {
+            param($ColIndex)
+            if ($ColIndex -ge 0 -and $ColIndex -lt $Row.Count) {
+                return $Row[$ColIndex].Trim()
+            }
+            return ""
         }
 
-        $AccessToken = New-GoogleServiceAccountToken -ClientEmail $ServiceAccount.client_email `
-            -PrivateKeyPem $ServiceAccount.private_key `
-            -Scope 'https://www.googleapis.com/auth/spreadsheets'
-    } catch {
-        Write-Error "Alliance $AllianceId: Google-Authentifizierung fehlgeschlagen: $_"
-        continue
-    }
+        $MessageText = &$GetValue $ColIndices.Message
+        $TimeOption = &$GetValue $ColIndices.TimeOption
+        $Status = &$GetValue $ColIndices.Status
+        $LastSent = &$GetValue $ColIndices.LastSent
+        $CurrentMessageId = &$GetValue $ColIndices.DiscordMessageId
 
-    # --- Read the current sheet contents ---
-    try {
-        $EncodedRange = [uri]::EscapeDataString("'$SheetName'")
-        $GetUri = "https://sheets.googleapis.com/v4/spreadsheets/$($Config.google_sheet_id)/values/$EncodedRange"
-        $SheetResponse = Invoke-RestMethod -Uri $GetUri -Headers @{ Authorization = "Bearer $AccessToken" }
-    } catch {
-        Write-Error "Alliance $AllianceId: Konnte Google Sheet nicht lesen: $_"
-        continue
-    }
-
-    $Values = $SheetResponse.values
-    if (-not $Values -or $Values.Count -lt 2) {
-        Write-Output "Alliance $AllianceId: Keine Einträge im Sheet gefunden."
-        continue
-    }
-
-    # --- Map header names to column indices ---
-    $HeaderRow = $Values[0]
-    $ColMap = @{}
-    for ($i = 0; $i -lt $HeaderRow.Count; $i++) {
-        $Header = $HeaderRow[$i]
-        if ([string]::IsNullOrWhiteSpace($Header)) { continue }
-        if (-not $ColMap.ContainsKey($Header)) {
-            $ColMap[$Header] = $i + 1
-        }
-    }
-
-    function Get-ColIndex {
-        param([string[]]$Names)
-        foreach ($Name in $Names) { if ($ColMap.ContainsKey($Name)) { return $ColMap[$Name] } }
-        return $null
-    }
-
-    $TimestampCol = Get-ColIndex @('Timestamp', 'Zeitstempel')
-    $NachrichtCol = Get-ColIndex @('Nachricht')
-    $TitelCol = Get-ColIndex @('Titel (optional)', 'Titel')
-    $BildUrlCol = Get-ColIndex @('Bild-URL (optional)', 'Bild-URL')
-    $MentionCol = Get-ColIndex @('Wen benachrichtigen? (optional)', 'Wen benachrichtigen?')
-    $ZeitOptionCol = Get-ColIndex @('Zeit-Option')
-    $MinutenCol = Get-ColIndex @('Minuten', 'Anzahl Minuten')
-    $DatumCol = Get-ColIndex @('Datum')
-    $UhrzeitDatumCol = Get-ColIndex @('Uhrzeit (Datum)')
-    $WochentagCol = Get-ColIndex @('Wochentag')
-    $UhrzeitWiederkehrendCol = Get-ColIndex @('Uhrzeit (Wiederkehrend)')
-    $EndDatumCol = Get-ColIndex @('End-Datum (optional)', 'End-Datum')
-    $StatusCol = Get-ColIndex @('Status')
-    $LetzterVersandCol = Get-ColIndex @('LetzterVersand')
-    $MessageIdCol = Get-ColIndex @('Discord-Message-ID', 'Message-ID')
-
-    if (-not $NachrichtCol -or -not $ZeitOptionCol -or -not $StatusCol -or -not $LetzterVersandCol) {
-        Write-Error "Alliance $AllianceId: Pflichtspalten fehlen im Sheet (Nachricht, Zeit-Option, Status, LetzterVersand)."
-        continue
-    }
-
-    # --- Walk through every response row and decide what's due ---
-    $Updates = @()
-    $SentCount = 0
-    $RowNumber = 1
-    $RowMessageId = @{}
-
-    foreach ($Row in ($Values | Select-Object -Skip 1)) {
-        $RowNumber++
-
-        $Nachricht = Get-Cell $Row $NachrichtCol
-        if (-not $Nachricht) { continue }
-
-        $ExistingMessageId = Get-Cell $Row $MessageIdCol
-        if ($ExistingMessageId) { $RowMessageId[$RowNumber] = $ExistingMessageId }
-
-        $ZeitOption = Get-Cell $Row $ZeitOptionCol
-        $Status = Get-Cell $Row $StatusCol
-        if ($Status -in @('Cancelled', 'Beendet')) { continue }
+        if ([string]::IsNullOrWhiteSpace($MessageText)) { continue }
 
         $ShouldSend = $false
-        $PostSendUpdates = @{}
 
-        switch ($ZeitOption) {
-            'Sofort' {
-                if ($Status -ne 'Sent') {
+        switch ($TimeOption) {
+            "Sofort" {
+                if ($Status -ne "Gesendet") {
                     $ShouldSend = $true
-                    $PostSendUpdates[$StatusCol] = 'Sent'
                 }
             }
-            'In X Minuten' {
-                if ($Status -ne 'Sent') {
-                    $Timestamp = ConvertTo-LocalDateTime (Get-Cell $Row $TimestampCol)
-                    $Minutes = Get-Cell $Row $MinutenCol
-                    if ($Timestamp -and $Minutes) {
-                        $Target = $Timestamp.AddMinutes([double]$Minutes)
-                        if ($NowLocal -ge $Target) {
-                            $ShouldSend = $true
-                            $PostSendUpdates[$StatusCol] = 'Sent'
+            "In X Minuten" {
+                if ($Status -ne "Gesendet") {
+                    $TimestampStr = &$GetValue 0
+                    $MinutesStr = &$GetValue $ColIndices.Minutes
+                    if ([int]::TryParse($MinutesStr, [ref]$null)) {
+                        $Minutes = [int]$MinutesStr
+                        if ($TimestampStr -match "(\d{1,2})\.(\d{1,2})\.(\d{4}) (\d{1,2}):(\d{2}):(\d{2})") {
+                            $TimestampDate = [DateTime]::ParseExact($TimestampStr, "dd.MM.yyyy HH:mm:ss", $null)
+                            if ($NowLocal -ge $TimestampDate.AddMinutes($Minutes)) {
+                                $ShouldSend = $true
+                            }
                         }
                     }
                 }
             }
-            'An einem Datum' {
-                if ($Status -ne 'Sent') {
-                    $Datum = ConvertTo-LocalDateTime (Get-Cell $Row $DatumCol)
-                    $Uhrzeit = ConvertTo-TimeSpanValue (Get-Cell $Row $UhrzeitDatumCol)
-                    if ($Datum -and $Uhrzeit) {
-                        $Target = $Datum.Date.Add($Uhrzeit)
-                        if ($NowLocal -ge $Target) {
-                            $ShouldSend = $true
-                            $PostSendUpdates[$StatusCol] = 'Sent'
+            "An einem Datum" {
+                if ($Status -ne "Gesendet") {
+                    $DateStr = &$GetValue $ColIndices.Date
+                    $TimeStr = &$GetValue $ColIndices.TimeDate
+                    if (-not [string]::IsNullOrWhiteSpace($DateStr) -and -not [string]::IsNullOrWhiteSpace($TimeStr)) {
+                        try {
+                            $TargetDateTime = [DateTime]::ParseExact("$DateStr $TimeStr", "dd.MM.yyyy HH:mm", $null)
+                            if ($NowLocal -ge $TargetDateTime) {
+                                $ShouldSend = $true
+                            }
+                        } catch {
+                            Write-Warning "Alliance $($Alliance.id) Row $($i + 1): Invalid Date/Time format: '$DateStr $TimeStr'"
                         }
                     }
                 }
             }
-            'Wiederkehrend' {
-                $EndDatum = ConvertTo-LocalDateTime (Get-Cell $Row $EndDatumCol)
-                if ($EndDatum -and $NowLocal.Date -gt $EndDatum.Date) {
-                    if ($Status -ne 'Beendet') {
-                        $Updates += @{ Row = $RowNumber; Col = $StatusCol; Value = 'Beendet' }
-                    }
-                    continue
+            "Wiederkehrend" {
+                $EndDateStr = &$GetValue $ColIndices.EndDate
+                if (-not [string]::IsNullOrWhiteSpace($EndDateStr)) {
+                    try {
+                        $EndDate = [DateTime]::ParseExact($EndDateStr, "dd.MM.yyyy", $null).AddDays(1)
+                        if ($NowLocal -ge $EndDate) {
+                            if ($Status -ne "Abgelaufen") {
+                                $Rows[$i][$ColIndices.Status] = "Abgelaufen"
+                                $RowsUpdated = $true
+                            }
+                            continue
+                        }
+                    } catch {}
                 }
 
-                $WochentagRaw = Get-Cell $Row $WochentagCol
-                $Wochentage = @()
-                if ($WochentagRaw) { $Wochentage = $WochentagRaw -split ',\s*' | ForEach-Object { $_.Trim() } }
+                $WeekdayStr = &$GetValue $ColIndices.Weekday
+                $TimeStr = &$GetValue $ColIndices.TimeRecurring
 
-                $Uhrzeit = ConvertTo-TimeSpanValue (Get-Cell $Row $UhrzeitWiederkehrendCol)
-                $LetzterVersand = ConvertTo-LocalDateTime (Get-Cell $Row $LetzterVersandCol)
+                if (-not [string]::IsNullOrWhiteSpace($WeekdayStr) -and -not [string]::IsNullOrWhiteSpace($TimeStr)) {
+                    $Weekdays = $WeekdayStr -split ", "
+                    
+                    $GermanDayMap = @{
+                        "Montag" = "Monday"
+                        "Dienstag" = "Tuesday"
+                        "Mittwoch" = "Wednesday"
+                        "Donnerstag" = "Thursday"
+                        "Freitag" = "Friday"
+                        "Samstag" = "Saturday"
+                        "Sonntag" = "Sunday"
+                    }
 
-                $IsDueDay = $Wochentage | Where-Object { $WeekdayMap.ContainsKey($_) -and $WeekdayMap[$_] -eq $NowLocal.DayOfWeek }
-                if ($IsDueDay -and $Uhrzeit) {
-                    $TimeReached = $NowLocal.TimeOfDay -ge $Uhrzeit
-                    $AlreadySentToday = $LetzterVersand -and ($LetzterVersand.Date -eq $NowLocal.Date)
-                    if ($TimeReached -and -not $AlreadySentToday) {
-                        $ShouldSend = $true
-                        $PostSendUpdates[$LetzterVersandCol] = $NowLocal.ToString('yyyy-MM-dd')
+                    $CurrentDayNameDe = ""
+                    foreach ($DeDay in $GermanDayMap.Keys) {
+                        if ($GermanDayMap[$DeDay] -eq $NowLocal.DayOfWeek.ToString()) {
+                            $CurrentDayNameDe = $DeDay
+                            break
+                        }
+                    }
+
+                    if ($Weekdays -contains $CurrentDayNameDe) {
+                        if (-not [string]::IsNullOrWhiteSpace($TimeStr)) {
+                            try {
+                                $TargetTime = [TimeSpan]::Parse($TimeStr + ":00")
+                                if ($NowLocal.TimeOfDay -ge $TargetTime) {
+                                    $TodayStr = $NowLocal.ToString("dd.MM.yyyy")
+                                    if ($LastSent -ne $TodayStr) {
+                                        $ShouldSend = $true
+                                    }
+                                }
+                            } catch {
+                                Write-Warning "Alliance $($Alliance.id) Row $($i + 1): Invalid recurring time format: '$TimeStr'"
+                            }
+                        }
                     }
                 }
             }
         }
 
         if ($ShouldSend) {
-            $Titel = Get-Cell $Row $TitelCol
-            $BildUrl = Get-Cell $Row $BildUrlCol
-            $MentionRaw = Get-Cell $Row $MentionCol
-            $MentionLabels = @()
-            if ($MentionRaw) { $MentionLabels = $MentionRaw -split ',\s*' | ForEach-Object { $_.Trim() } }
+            Write-Output "Alliance $($Alliance.id) Row $($i + 1): Sending notification..."
+            $EmbedTitle = &$GetValue $ColIndices.Title
+            $ImageUrl = &$GetValue $ColIndices.Image
+            $MentionsStr = &$GetValue $ColIndices.Mentions
 
-            $MentionParts = @()
-            $AllowedRoles = @()
-            $ParseEveryone = $false
-            foreach ($Label in $MentionLabels) {
-                switch ($Label) {
-                    'Everyone' { $MentionParts += '@everyone'; $ParseEveryone = $true }
-                    'Gildenleitung' {
-                        if ($Config.role_id_gildenleitung) { $MentionParts += "<@&$($Config.role_id_gildenleitung)>"; $AllowedRoles += $Config.role_id_gildenleitung }
-                    }
-                    'User' {
-                        if ($Config.role_id_user) { $MentionParts += "<@&$($Config.role_id_user)>"; $AllowedRoles += $Config.role_id_user }
-                    }
+            $PingPrefix = ""
+            if (-not [string]::IsNullOrWhiteSpace($MentionsStr)) {
+                $MentionList = $MentionsStr -split ", "
+                $Pings = @()
+                if ($MentionList -contains "Everyone") { $Pings += "@everyone" }
+                if ($MentionList -contains "Gildenleitung" -and -not [string]::IsNullOrWhiteSpace($Config.role_id_gildenleitung)) { $Pings += "<@&$($Config.role_id_gildenleitung)>" }
+                if ($MentionList -contains "User" -and -not [string]::IsNullOrWhiteSpace($Config.role_id_user)) { $Pings += "<@&$($Config.role_id_user)>" }
+                if ($Pings.Count -gt 0) {
+                    $PingPrefix = ($Pings -join " ") + "`n`n"
                 }
             }
-            $MentionPrefix = $MentionParts -join ' '
-            $AllowedMentions = @{ parse = @(); roles = $AllowedRoles; users = @() }
-            if ($ParseEveryone) { $AllowedMentions.parse = @('everyone') }
 
-            $SendResult = Send-DiscordNotification -WebhookUrl $Config.discord_webhook -Message $Nachricht -Title $Titel -ImageUrl $BildUrl `
-                -MentionPrefix $MentionPrefix -AllowedMentions $AllowedMentions
-            if ($SendResult.Success) {
-                $SentCount++
-                Send-TelegramNotification -BotToken $Config.telegram_bot_token -ChatId $Config.telegram_chat_id -Message $Nachricht -Title $Titel
-                foreach ($Key in $PostSendUpdates.Keys) {
-                    $Updates += @{ Row = $RowNumber; Col = $Key; Value = $PostSendUpdates[$Key] }
-                }
-                if ($MessageIdCol -and $SendResult.MessageId) {
-                    $Updates += @{ Row = $RowNumber; Col = $MessageIdCol; Value = $SendResult.MessageId }
-                    $RowMessageId[$RowNumber] = $SendResult.MessageId
+            if (-not [string]::IsNullOrWhiteSpace($CurrentMessageId) -and -not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
+                try {
+                    Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$CurrentMessageId" -Method Delete
+                    Write-Output "Alliance $($Alliance.id) Row $($i + 1): Deleted old Discord message $CurrentMessageId."
+                } catch {
+                    Write-Warning "Alliance $($Alliance.id) Row $($i + 1): Could not delete old Discord message ($CurrentMessageId)."
                 }
             }
-            else {
-                Write-Warning "Alliance $AllianceId: Zeile $RowNumber wird beim nächsten Lauf erneut versucht."
+
+            $NewMessageId = ""
+            if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
+                $Payload = [ordered]@{
+                    content = $PingPrefix + $MessageText
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($EmbedTitle) -or -not [string]::IsNullOrWhiteSpace($ImageUrl)) {
+                    $Embed = [ordered]@{}
+                    if (-not [string]::IsNullOrWhiteSpace($EmbedTitle)) {
+                        $Embed.title = $EmbedTitle
+                        $Embed.color = 16711680 # Red
+                    }
+                    if (-not [string]::IsNullOrWhiteSpace($ImageUrl)) {
+                        $Embed.image = @{ url = $ImageUrl }
+                    }
+                    $Payload.embeds = @($Embed)
+                }
+
+                $JsonPayload = $Payload | ConvertTo-Json -Depth 5
+
+                try {
+                    $DiscordResponse = Invoke-RestMethod -Uri "$($Config.discord_webhook)?wait=true" -Method Post -Body $JsonPayload -ContentType 'application/json'
+                    if ($DiscordResponse.id) {
+                        $NewMessageId = $DiscordResponse.id
+                    }
+                } catch {
+                    Write-Error "Alliance $($Alliance.id) Row $($i + 1): Failed to send Discord webhook. Exception: $_"
+                }
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($Config.telegram_bot_token) -and -not [string]::IsNullOrWhiteSpace($Config.telegram_chat_id)) {
+                $TextHtml = $MessageText -replace '<@&\d+>', '' -replace '<@\!?\d+>', '' -replace '<#\d+>', '' -replace '@(everyone|here)', ''
+                $TextHtml = $TextHtml.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+                $TextHtml = $TextHtml -replace '(?m)^[\*\-]\s+', '• '
+                $TextHtml = $TextHtml -replace '(?m)^#+\s*(.+)$', '<b>$1</b>'
+                $TextHtml = $TextHtml -replace '(?m)^[-*_]{3,}\s*$', '──────────'
+                $TextHtml = $TextHtml -replace '\*\*(.+?)\*\*', '<b>$1</b>'
+                $TextHtml = $TextHtml -replace '~~(.+?)~~', '<s>$1</s>'
+                $TextHtml = $TextHtml -replace '(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', '<i>$1</i>'
+                $TextHtml = $TextHtml -replace '_(.+?)_', '<i>$1</i>'
+                $TextHtml = ($TextHtml -replace '(\r?\n){3,}', "`n`n").Trim()
+
+                if (-not [string]::IsNullOrWhiteSpace($EmbedTitle)) {
+                    $TextHtml = "<b>$EmbedTitle</b>`n`n$TextHtml"
+                }
+                
+                if (-not [string]::IsNullOrWhiteSpace($ImageUrl)) {
+                    $TelegramPayload = @{
+                        chat_id    = $Config.telegram_chat_id
+                        photo      = $ImageUrl
+                        caption    = $TextHtml
+                        parse_mode = 'HTML'
+                    } | ConvertTo-Json -Depth 3
+                    $TgUrl = "https://api.telegram.org/bot$($Config.telegram_bot_token)/sendPhoto"
+                } else {
+                    $TelegramPayload = @{
+                        chat_id                  = $Config.telegram_chat_id
+                        text                     = $TextHtml
+                        parse_mode               = 'HTML'
+                        disable_web_page_preview = $true
+                    } | ConvertTo-Json -Depth 3
+                    $TgUrl = "https://api.telegram.org/bot$($Config.telegram_bot_token)/sendMessage"
+                }
+
+                try {
+                    Invoke-RestMethod -Uri $TgUrl -Method Post -Body $TelegramPayload -ContentType 'application/json' | Out-Null
+                }
+                catch {
+                    Write-Warning "Alliance $($Alliance.id) Row $($i + 1): Failed to send Telegram notification. Exception: $_"
+                }
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($Config.callmebot_phone) -and -not [string]::IsNullOrWhiteSpace($Config.callmebot_apikey)) {
+                $WhatsAppText = $MessageText -replace '\*\*(.+?)\*\*', '*$1*'
+                $WhatsAppText = $WhatsAppText -replace '~~(.+?)~~', '~$1~'
+                if (-not [string]::IsNullOrWhiteSpace($EmbedTitle)) {
+                    $WhatsAppText = "*$EmbedTitle*`n`n$WhatsAppText"
+                }
+                $EncodedText = [System.Uri]::EscapeDataString($WhatsAppText)
+                $CallMeBotUri = "https://api.callmebot.com/whatsapp.php?phone=$($Config.callmebot_phone)&text=${EncodedText}&apikey=$($Config.callmebot_apikey)"
+                try {
+                    Invoke-RestMethod -Uri $CallMeBotUri -Method Get | Out-Null
+                }
+                catch {
+                    Write-Warning "Failed to send WhatsApp notification via CallMeBot for $($Alliance.id). Exception: $_"
+                }
+            }
+
+            while ($Rows[$i].Count -le $ColIndices.DiscordMessageId) {
+                $Rows[$i] += ""
+            }
+
+            if ($TimeOption -eq "Wiederkehrend") {
+                $Rows[$i][$ColIndices.LastSent] = $NowLocal.ToString("dd.MM.yyyy")
+            } else {
+                $Rows[$i][$ColIndices.Status] = "Gesendet"
+                $Rows[$i][$ColIndices.LastSent] = $NowLocal.ToString("dd.MM.yyyy HH:mm:ss")
+            }
+            
+            if (-not [string]::IsNullOrWhiteSpace($NewMessageId)) {
+                $Rows[$i][$ColIndices.DiscordMessageId] = $NewMessageId
+                $CurrentMessageId = $NewMessageId
+            }
+            $RowsUpdated = $true
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($CurrentMessageId)) {
+            $ActiveMessageIdsThisRun += $CurrentMessageId
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
+        foreach ($OldId in $KnownIdsForAlliance) {
+            if ($ActiveMessageIdsThisRun -notcontains $OldId -and -not [string]::IsNullOrWhiteSpace($OldId)) {
+                try {
+                    Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$OldId" -Method Delete
+                    Write-Output "Alliance $($Alliance.id): Cleaned up deleted/expired Discord message ($OldId)."
+                } catch {
+                    Write-Warning "Alliance $($Alliance.id): Could not delete orphaned Discord message ($OldId)."
+                }
             }
         }
     }
 
-    # --- Delete Discord messages whose row disappeared or got superseded ---
-    $DeletedCount = 0
-    if ($MessageIdCol -and -not [string]::IsNullOrWhiteSpace($Config.discord_webhook)) {
-        $FinalIds = @($RowMessageId.Values | Where-Object { $_ })
-        $PreviousIds = @()
-        if (Test-Path $StateFilePath) {
-            $PreviousIds = @(Get-Content -Path $StateFilePath -ErrorAction SilentlyContinue | Where-Object { $_ })
-        }
+    $GlobalState[$Alliance.id] = $ActiveMessageIdsThisRun
 
-        foreach ($Id in ($PreviousIds | Where-Object { $_ -notin $FinalIds })) {
-            try {
-                Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$Id" -Method Delete
-                $DeletedCount++
-            }
-            catch {
-                Write-Warning "Alliance $AllianceId: Konnte Discord-Nachricht $Id nicht löschen (evtl. bereits manuell gelöscht): $_"
-            }
-        }
-
-        Set-Content -Path $StateFilePath -Value $FinalIds
-    }
-
-    # --- Write status/timestamp updates back to the sheet in one batch ---
-    if ($Updates.Count -gt 0) {
-        $Data = @(
-            foreach ($Update in $Updates) {
-                @{
-                    range  = "'$SheetName'!$(ConvertTo-ColumnLetter $Update.Col)$($Update.Row)"
-                    values = @(, @($Update.Value))
-                }
-            }
-        )
-        $BatchBody = @{ valueInputOption = 'RAW'; data = $Data } | ConvertTo-Json -Depth 5
-
+    if ($RowsUpdated) {
+        $UpdateRange = "A1:M"
+        $UpdatePayload = @{
+            range = $UpdateRange
+            values = $Rows
+        } | ConvertTo-Json -Depth 5
+        
+        $UpdateUrl = "https://sheets.googleapis.com/v4/spreadsheets/$($Config.google_sheet_id)/values/$UpdateRange`?valueInputOption=USER_ENTERED"
+        
         try {
-            Invoke-RestMethod -Uri "https://sheets.googleapis.com/v4/spreadsheets/$($Config.google_sheet_id)/values:batchUpdate" `
-                -Method Post -Headers @{ Authorization = "Bearer $AccessToken" } -Body $BatchBody -ContentType 'application/json' | Out-Null
-        }
-        catch {
-            Write-Error "Alliance $AllianceId: Konnte Sheet-Status nicht aktualisieren: $_"
+            Invoke-RestMethod -Uri $UpdateUrl -Headers @{ Authorization = "Bearer $GoogleToken" } -Method Put -Body $UpdatePayload -ContentType 'application/json' | Out-Null
+            Write-Output "Alliance $($Alliance.id): Google Sheet updated successfully."
+        } catch {
+            Write-Error "Alliance $($Alliance.id): Failed to update Google Sheet. Exception: $_"
         }
     }
-
-    Write-Output "Alliance $AllianceId: Fertig. $SentCount Benachrichtigung(en) gesendet, $($Updates.Count) Sheet-Zelle(n) aktualisiert, $DeletedCount Discord-Nachricht(en) gelöscht."
 }
+
+$GlobalState | ConvertTo-Json -Depth 3 | Set-Content -Path $StateFilePath -NoNewline
