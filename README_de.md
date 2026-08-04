@@ -15,15 +15,45 @@ Postet jeden Morgen den aktuellen Tagesplan für das Allianz-Duell und den Über
 
 **Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — läuft täglich um 04:00 Uhr CEST (02:00 UTC).
 
-### GitHub Secrets setzen
+### Allianzen verwalten und hinzufügen
 
-| Secret | Wert |
-|---|---|
-| `DISCORD_WEBHOOK_URL_DAILY` | Webhook-URL des Ziel-Discord-Channels |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram Channel/Chat-ID (optional) |
+Die gesamte Konfiguration verwaltest du in den GitHub-Einstellungen deines Repositories:
+1. Gehe in deinem Repository auf **Settings** -> **Secrets and variables** -> **Actions**.
+2. Erstelle ein neues **Repository secret** mit dem exakten Namen `ALLIANCES_CONFIG`.
+3. Der Inhalt dieses Secrets ist ein JSON-Array. Um eine neue Allianz hinzuzufügen, kopierst du einfach den Block der bestehenden Allianz, hängst ihn mit einem Komma getrennt unten an, und änderst die Werte.
 
-*Hinweis: Wenn die Telegram-Secrets nicht gesetzt sind, wird der Versand an Telegram automatisch übersprungen.*
+**Beispiel für ZWEI Allianzen im Secret:**
+```json
+[
+  {
+    "id": "alliance-main",
+    "timezone": "Europe/Berlin",
+    "daily_briefing": {
+      "enabled": true,
+      "send_time": "05:00",
+      "languages": ["de", "en"],
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "role_id_ping": "123456789012345678",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    },
+    "custom_notifications": {
+      "enabled": true,
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "google_sheet_id": "1A2B3C...",
+      "google_service_account_key": {
+        "type": "service_account",
+        "project_id": "...",
+        "private_key": "..."
+      },
+      "role_id_gildenleitung": "1234...",
+      "role_id_user": "5678...",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    }
+  }
+]
+```
 
 ---
 

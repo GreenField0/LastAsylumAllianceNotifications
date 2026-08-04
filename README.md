@@ -15,15 +15,45 @@ Posts the daily Alliance Duel and Survival schedule to Discord (and optionally T
 
 **Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — runs daily at 04:00 CEST (02:00 UTC).
 
-### GitHub Secrets
+### Manage and add alliances
 
-| Secret | Value |
-|---|---|
-| `DISCORD_WEBHOOK_URL_DAILY` | Webhook URL of the target Discord channel |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram channel/chat ID (optional) |
+You manage the entire configuration in your repository's GitHub settings:
+1. In your repository, go to **Settings** -> **Secrets and variables** -> **Actions**.
+2. Create a new **Repository secret** with the exact name `ALLIANCES_CONFIG`.
+3. The content of this secret is a JSON array. To add a new alliance, simply copy the block of the existing alliance, append it at the bottom separated by a comma, and change the values.
 
-Telegram notifications are skipped if the secrets are not set.
+**Example of TWO alliances in the secret:**
+```json
+[
+  {
+    "id": "alliance-main",
+    "timezone": "Europe/London",
+    "daily_briefing": {
+      "enabled": true,
+      "send_time": "05:00",
+      "languages": ["en"],
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "role_id_ping": "123456789012345678",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    },
+    "custom_notifications": {
+      "enabled": true,
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "google_sheet_id": "1A2B3C...",
+      "google_service_account_key": {
+        "type": "service_account",
+        "project_id": "...",
+        "private_key": "..."
+      },
+      "role_id_gildenleitung": "1234...",
+      "role_id_user": "5678...",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    }
+  }
+]
+```
 
 ---
 
