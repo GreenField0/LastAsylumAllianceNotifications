@@ -9,25 +9,78 @@ Automated notifications for the LastAsylum guild — daily schedule briefings an
 
 ---
 
-## Daily Briefing
+## Multi-Alliance Configuration
 
-Posts the daily Alliance Duel and Survival schedule to Discord (and optionally Telegram) every morning. The schedule is defined in [`schedule.json`](schedule.json).
+The system supports running multiple alliances simultaneously using a single central configuration secret (`ALLIANCES_CONFIG`). The entire configuration (webhook URLs, sheet IDs, languages, timezones) is stored there as a JSON array. This keeps all credentials completely hidden and allows the system to serve any number of alliances in parallel.
 
-**Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — runs daily at 04:00 CEST (02:00 UTC).
+### Managing and Adding Alliances
 
-### GitHub Secrets
+You manage the entire configuration in your repository's GitHub settings:
+1. Go to your repository and click on **Settings** -> **Secrets and variables** -> **Actions**.
+2. Create a new **Repository secret** with the exact name `ALLIANCES_CONFIG`.
+3. The content of this secret is a JSON array. To add a new alliance, simply copy the block of an existing alliance, append it at the bottom (separated by a comma), and change the values.
 
-| Secret | Value |
-|---|---|
-| `DISCORD_WEBHOOK_URL_DAILY` | Webhook URL of the target Discord channel |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram channel/chat ID (optional) |
-
-Telegram notifications are skipped if the secrets are not set.
+**Example for TWO alliances in the secret:**
+```json
+[
+  {
+    "id": "alliance-main",
+    "timezone": "Europe/Berlin",
+    "daily_briefing": {
+      "enabled": true,
+      "send_time": "05:00",
+      "languages": ["en", "de"],
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "role_id_ping": "123456789012345678",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    },
+    "custom_notifications": {
+      "enabled": true,
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "google_sheet_id": "1A2B3C...",
+      "google_service_account_key": {
+        "type": "service_account",
+        "project_id": "...",
+        "private_key": "..."
+      },
+      "role_id_gildenleitung": "1234...",
+      "role_id_user": "5678...",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    }
+  },
+  {
+    "id": "alliance-second",
+    "timezone": "Asia/Tokyo",
+    "daily_briefing": {
+      "enabled": true,
+      "send_time": "08:00",
+      "languages": ["en"],
+      "discord_webhook": "https://discord.com/api/webhooks/...",
+      "role_id_ping": "",
+      "telegram_bot_token": "",
+      "telegram_chat_id": ""
+    },
+    "custom_notifications": {
+      "enabled": false
+    }
+  }
+]
+```
+*(Tip: If you want to update `ALLIANCES_CONFIG` later or add an alliance, go back to **Secrets**, click the pencil (Update) icon, paste your updated full JSON, and save. You can paste the contents of your downloaded Google Service Account JSON file directly as an object, without adding extra quotes around it!)*
 
 ---
 
-## Custom Notifications (R4/R5 self-service)
+## 1. Daily Briefing
+
+Posts the daily Alliance Duel and Survival schedule to Discord (and optionally Telegram) every day at the desired time (`send_time`).
+- The schedule is defined in [`schedule.json`](schedule.json) and supports multiple languages. The script combines the selected languages (`languages`) into one message and optionally mentions the configured Discord role (`role_id_ping`).
+- **Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — runs every 15 minutes and checks for each alliance if their local time (based on `timezone`) has reached the set `send_time`.
+
+---
+
+## 2. Custom Notifications (R4/R5 self-service)
 
 R4/R5 can schedule their own Discord (and Telegram) notifications via a Google Form. Editing or deleting an entry is done directly in the linked Google Sheet — no separate admin UI required.
 
@@ -84,21 +137,9 @@ Once `Discord-Message-ID` exists, the script tracks each sent message's ID. If a
 4. Open the service account → **Keys** → **Add Key** → **Create new key** → download as **JSON**.
 5. Share the sheet from step 2 with the service account's email address (`...@...iam.gserviceaccount.com`) as **Editor**.
 
-### 4. Set GitHub Secrets
-
-| Secret | Value |
-|---|---|
-| `DISCORD_WEBHOOK_URL_CUSTOM` | Webhook URL of the target Discord channel |
-| `GOOGLE_SHEET_ID` | Spreadsheet ID from step 2 |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Full contents of the JSON key file from step 3 |
-| `DISCORD_ROLE_ID_GILDENLEITUNG` | Role ID for the Gildenleitung role (optional) |
-| `DISCORD_ROLE_ID_USER` | Role ID for the User role (optional) |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram channel/chat ID (optional) |
-
 **Finding a Discord role ID:** Enable Developer Mode in Discord (Settings → Advanced), then right-click a role in Server Settings → Roles → **Copy ID**. For role mentions to actually ping, the channel must also allow "Mention @everyone, @here and All Roles" or the specific role mention permission.
 
-The workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) checks for due notifications every 15 minutes and runs [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1).
+The workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) checks for due notifications every 15 minutes and runs [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1) for each configured alliance.
 
 ---
 
