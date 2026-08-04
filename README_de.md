@@ -9,11 +9,9 @@ Automatisierte Benachrichtigungen für die LastAsylum-Allianz – tägliche Zeit
 
 ---
 
-## Tägliches Briefing (Daily Briefing)
+## Konfiguration für (mehrere) Allianzen
 
-Postet jeden Morgen den aktuellen Tagesplan für das Allianz-Duell und den Überlebenskampf in Discord (und optional Telegram). Der Zeitplan ist in der Datei [`schedule.json`](schedule.json) definiert.
-
-**Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — läuft täglich um 04:00 Uhr CEST (02:00 UTC).
+Das System unterstützt den parallelen Betrieb mehrerer Allianzen über ein zentrales Konfigurations-Secret (`ALLIANCES_CONFIG`). Die gesamte Konfiguration (Webhook-URLs, Sheet-IDs, Sprachen, Zeitzonen) wird dort als JSON-Array hinterlegt. Dadurch bleiben alle Zugangsdaten geheim und das System kann für beliebig viele Allianzen gleichzeitig laufen.
 
 ### Allianzen verwalten und hinzufügen
 
@@ -22,42 +20,21 @@ Die gesamte Konfiguration verwaltest du in den GitHub-Einstellungen deines Repos
 2. Erstelle ein neues **Repository secret** mit dem exakten Namen `ALLIANCES_CONFIG`.
 3. Der Inhalt dieses Secrets ist ein JSON-Array. Um eine neue Allianz hinzuzufügen, kopierst du einfach den Block der bestehenden Allianz, hängst ihn mit einem Komma getrennt unten an, und änderst die Werte.
 
-**Beispiel für ZWEI Allianzen im Secret:**
-```json
-[
-  {
-    "id": "alliance-main",
-    "timezone": "Europe/Berlin",
-    "daily_briefing": {
-      "enabled": true,
-      "send_time": "05:00",
-      "languages": ["de", "en"],
-      "discord_webhook": "https://discord.com/api/webhooks/...",
-      "role_id_ping": "123456789012345678",
-      "telegram_bot_token": "",
-      "telegram_chat_id": ""
-    },
-    "custom_notifications": {
-      "enabled": true,
-      "discord_webhook": "https://discord.com/api/webhooks/...",
-      "google_sheet_id": "1A2B3C...",
-      "google_service_account_key": {
-        "type": "service_account",
-        "project_id": "...",
-        "private_key": "..."
-      },
-      "role_id_gildenleitung": "1234...",
-      "role_id_user": "5678...",
-      "telegram_bot_token": "",
-      "telegram_chat_id": ""
-    }
-  }
-]
-```
+**Workflow:** [`daily-briefing.yml`](.github/workflows/daily-briefing.yml) — läuft täglich um 04:00 Uhr CEST (02:00 UTC).
+
+### GitHub Secrets setzen
+
+| Secret | Wert |
+|---|---|
+| `DISCORD_WEBHOOK_URL_DAILY` | Webhook-URL des Ziel-Discord-Channels |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token (optional) |
+| `TELEGRAM_CHAT_ID` | Telegram Channel/Chat-ID (optional) |
+
+*Hinweis: Wenn die Telegram-Secrets nicht gesetzt sind, wird der Versand an Telegram automatisch übersprungen.*
 
 ---
 
-## Individuelle Ankündigungen (R4/R5 Self-Service)
+## 2. Individuelle Ankündigungen (R4/R5 Self-Service)
 
 R4- und R5-Mitglieder können eigene Discord- und Telegram-Benachrichtigungen ganz einfach über ein Google Form anlegen und planen. Das Bearbeiten oder Löschen von Einträgen geschieht direkt im verknüpften Google Sheet — es ist kein separates Admin-Interface oder Programmierwissen nötig!
 
@@ -114,22 +91,10 @@ Sobald die Spalte `Discord-Message-ID` existiert, merkt sich das Skript die ID j
 4. Im Service Account auf "Keys" → "Add Key" → "Create new key" → **JSON** auswählen und herunterladen.
 5. Das Google Sheet aus Schritt 2 mit der E-Mail-Adresse des Service Accounts (`...@...iam.gserviceaccount.com`) mit der Berechtigung **Editor** teilen.
 
-### 4. GitHub Secrets setzen
-
-| Secret | Wert |
-|---|---|
-| `DISCORD_WEBHOOK_URL_CUSTOM` | Webhook-URL des Ziel-Channels |
-| `GOOGLE_SHEET_ID` | Spreadsheet-ID aus Schritt 2 |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Kompletter Inhalt der heruntergeladenen JSON-Key-Datei aus Schritt 3 |
-| `DISCORD_ROLE_ID_GILDENLEITUNG` | Rollen-ID der Gildenleitung-Rolle (optional, nur für Erwähnung nötig) |
-| `DISCORD_ROLE_ID_USER` | Rollen-ID der User-Rolle (optional, nur für Erwähnung nötig) |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram Channel/Chat-ID (optional) |
-
 **Rollen-ID in Discord herausfinden:**  
 Discord-Einstellungen → Erweitert → **Entwicklermodus** aktivieren. Danach in den Server-Einstellungen unter "Rollen" mit Rechtsklick auf die jeweilige Rolle klicken → **ID kopieren**. Damit ein Rollen-Mention im Channel wirklich eine Benachrichtigung auslöst, muss in den Berechtigungen des Channels "@everyone erwähnen" oder die Erwähnung der spezifischen Rolle erlaubt sein.
 
-Der Workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) prüft automatisch alle 15 Minuten, ob geplante Benachrichtigungen fällig sind, und ruft dabei [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1) auf.
+Der Workflow [`custom-notifications.yml`](.github/workflows/custom-notifications.yml) prüft automatisch alle 15 Minuten, ob geplante Benachrichtigungen fällig sind, und ruft dabei [`Send-CustomNotifications.ps1`](Send-CustomNotifications.ps1) für jede konfigurierte Allianz auf.
 
 ---
 

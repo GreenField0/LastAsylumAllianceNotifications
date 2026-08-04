@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,10 +9,13 @@
     <!-- Google Fonts for modern typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap"
+        rel="stylesheet">
     <!-- marked.js for Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
+
 <body>
     <!-- Background Elements -->
     <div class="bg-shape bg-shape-1"></div>
@@ -31,9 +35,6 @@
             <ul class="nav-links" id="nav-list">
                 <!-- Navigation links populated by app.js -->
             </ul>
-            <div class="sidebar-footer" style="margin-top: auto; padding-top: 1rem; text-align: center; opacity: 0.7; font-size: 0.85rem; border-top: 1px solid rgba(255,255,255,0.1);">
-                <a href="https://github.com/GreenField0/LastAsylumAllianceNotifications" target="_blank" style="color: inherit; text-decoration: none;">Projekt auf GitHub</a>
-            </div>
         </nav>
 
         <!-- Main Content Area -->
@@ -42,11 +43,11 @@
                 <h1>Last Asylum</h1>
                 <button id="mobile-menu-btn" class="menu-btn">☰</button>
             </header>
-            
+
             <div id="content" class="content-container glass-panel markdown-body">
                 <div class="loader">Loading...</div>
             </div>
-            
+
             <!-- Timezone Info Banner -->
             <div class="timezone-banner glass-panel">
                 <p>⏱️ <span id="tz-info">Detecting timezone...</span></p>
@@ -56,4 +57,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

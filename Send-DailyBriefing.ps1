@@ -37,96 +37,22 @@ catch {
     exit 1
 }
 
-foreach ($Alliance in $Alliances) {
-    if (-not $Alliance.daily_briefing -or $Alliance.daily_briefing.enabled -eq $false) {
-        Write-Verbose "Daily briefing disabled for alliance $($Alliance.id) - skipping."
-        continue
-    }
+# 4. Construct JSON Payload with Embed Structure for Image
+$Payload = [ordered]@{
+    content = $TodayData.content
+    # embeds  = @(
+    #     @{
+    #         image = @{
+    #             url = $TodayData.image
+    #         }
+    #     }
+    # )
+}
 
-    $Config = $Alliance.daily_briefing
-    $StateFilePath = ".\.daily-state-$($Alliance.id).json"
-
-    # 3. Determine timezone and local time
-    try {
-        $TimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($Alliance.timezone)
-        $NowLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, $TimeZone)
-    } catch {
-        Write-Warning "Alliance $($Alliance.id): Unknown timezone '$($Alliance.timezone)' - skipping."
-        continue
-    }
-
-    $CurrentDay = $NowLocal.DayOfWeek.ToString()
-    $TodayData = $ScheduleData.$CurrentDay
-
-    if ($null -eq $TodayData) {
-        Write-Warning "Alliance $($Alliance.id): No schedule data found for $CurrentDay."
-        continue
-    }
-
-    # 4. Check if we reached the target time
-    $TargetTimeSpan = [timespan]::Zero
-    if (-not [timespan]::TryParse($Config.send_time, [ref]$TargetTimeSpan)) {
-        Write-Warning "Alliance $($Alliance.id): Invalid send_time format '$($Config.send_time)' - should be e.g. '05:00'."
-        continue
-    }
-
-    if ($NowLocal.TimeOfDay -lt $TargetTimeSpan) {
-        Write-Verbose "Alliance $($Alliance.id): Target time $($Config.send_time) not reached yet (Local time: $($NowLocal.ToString('HH:mm')))."
-        continue
-    }
-
-    # 5. Check if we already sent it today
-    $State = @{ last_send_date = ""; last_message_id = "" }
-    if (Test-Path $StateFilePath) {
-        try {
-            # Need to cast explicitly to hashtable/PSCustomObject for easier access
-            $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
-            if ($FileContent.last_send_date) { $State.last_send_date = $FileContent.last_send_date }
-            if ($FileContent.last_message_id) { $State.last_message_id = $FileContent.last_message_id }
-        } catch { }
-    }
-
-    $TodayString = $NowLocal.ToString('yyyy-MM-dd')
-    if ($State.last_send_date -eq $TodayString) {
-        Write-Verbose "Alliance $($Alliance.id): Already sent today."
-        continue
-    }
-
-    # 6. Prepare Message Content based on requested languages
-    $LanguageParts = @()
-    $Languages = $Config.languages
-    if (-not $Languages) { $Languages = @("de") } # Default fallback
-
-    foreach ($Lang in $Languages) {
-        $Text = $TodayData.content.$Lang
-        if ($Text) {
-            $LanguageParts += $Text
-        } else {
-            Write-Warning "Alliance $($Alliance.id): Language '$Lang' not found in schedule.json for $CurrentDay."
-        }
-    }
-
-    if ($LanguageParts.Count -eq 0) {
-        Write-Warning "Alliance $($Alliance.id): Resulting message is empty, skipping."
-        continue
-    }
-
-    # Combine all languages with a separator
-    $FinalMessage = $LanguageParts -join "`n`n---`n`n"
-
-    # Prepend ping if configured
-    if (-not [string]::IsNullOrWhiteSpace($Config.role_id_ping)) {
-        $FinalMessage = "<@&$($Config.role_id_ping)>`n`n" + $FinalMessage
-    }
-
-    $Payload = [ordered]@{
-        content = $FinalMessage
-    }
-
-    $NewMessageId = ""
-
-    # 7. Delete previous day's message on Discord
-    if (-not [string]::IsNullOrWhiteSpace($Config.discord_webhook) -and -not [string]::IsNullOrWhiteSpace($State.last_message_id)) {
+# 5. Delete the previous day's message (if any) so only the current one remains
+if ($EnableDiscord -and (Test-Path $MessageIdStorePath)) {
+    $PreviousMessageId = (Get-Content -Raw -Path $MessageIdStorePath).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($PreviousMessageId)) {
         try {
             Invoke-RestMethod -Uri "$($Config.discord_webhook)/messages/$($State.last_message_id)" -Method Delete
             Write-Output "Alliance $($Alliance.id): Deleted previous message ($($State.last_message_id))."

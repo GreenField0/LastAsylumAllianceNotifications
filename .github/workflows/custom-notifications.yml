@@ -33,7 +33,7 @@ jobs:
           git add .custom-notifications-known-ids-*.txt
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
-            git commit -m "chore: update known Discord message IDs [skip ci]"
+            git commit -m "chore: update custom notifications state [skip ci]"
             git push
           } else {
             Write-Output "No changes to commit."
