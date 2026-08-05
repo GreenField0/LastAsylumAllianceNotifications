@@ -62,7 +62,7 @@ function New-GoogleServiceAccountToken {
             assertion  = $Jwt
         }
 
-        $Response = Invoke-RestMethod -Uri "https://oauth2.googleapis.com/token" -Method Post -Body $Body -Form
+        $Response = Invoke-RestMethod -Uri "https://oauth2.googleapis.com/token" -Method Post -Body $Body
         return $Response.access_token
     } catch {
         Write-Error "Failed to generate Google token: $_"
