@@ -72,7 +72,7 @@ function New-GoogleServiceAccountToken {
 
 # 2. Load Global State for known IDs
 $StateFilePath = ".\.custom-notifications-state.json"
-$GlobalState = @{}
+$GlobalState = [ordered]@{}
 if (Test-Path $StateFilePath) {
     try {
         $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json

@@ -39,7 +39,7 @@ catch {
 
 # 3. Load Global State
 $StateFilePath = ".\.daily-state.json"
-$GlobalState = @{}
+$GlobalState = [ordered]@{}
 if (Test-Path $StateFilePath) {
     try {
         $FileContent = Get-Content -Raw -Path $StateFilePath | ConvertFrom-Json
